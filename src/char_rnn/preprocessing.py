@@ -67,11 +67,11 @@ class Embedding:
         self._weights = np.random.randn(vocab_size, embed_dim) * 0.01
         self._last_inputs: Optional[np.ndarray] = None
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        self._last_inputs = x
+    def forward(self, inputs: np.ndarray) -> np.ndarray:
+        self._last_inputs = inputs
 
         try:
-            return self._weights[x]
+            return self._weights[inputs]
         except IndexError as e:
             logger.error("Index %d out of bounds for vocab size %d.",
                          e.args[0], self.vocab_size)
