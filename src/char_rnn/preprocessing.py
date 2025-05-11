@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, List
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,25 +18,32 @@ class TextVectorizer:
             logger.error("Cannot fit on empty text.")
             raise ValueError("Input text cannot be empty.")
 
-        self.vocab = sorted(set(text))
+        self.vocab = sorted(list(set(text)))
         self._char_to_id = {ch: i for i, ch in enumerate(self.vocab)}
-        self._id_to_char = {i: ch for i, ch in enumerate(self.vocab)}
+        self._id_to_char = dict(enumerate(self.vocab))
 
-    def encode(self, texts: List[str]) -> List[List[int]]:
+    def encode(self, texts: List[str]) -> np.ndarray:
         if not self.vocab:
             logger.error("TextVectorizer not fitted. Call fit first.")
             raise RuntimeError("Vectorizer has not been fitted on any text.")
 
-        try:
-            sequences = []
-            for text in texts:
+        sequences = []
+        for text in texts:
+            try:
                 sequences.append([self._char_to_id[ch] for ch in text])
-            return sequences
-        except KeyError as e:
-            logger.error("Unknown character: %s.", e)
-            raise ValueError(f"Character {e} not in vocabulary.") from e
+            except KeyError as e:
+                logger.error("Unknown character: %s.", e.args[0])
+                raise ValueError(
+                    f"Character {e.args[0]} not in vocabulary.") from e
 
-    def decode(self, sequences: List[List[int]]) -> List[str]:
+        try:
+            return np.array(sequences)
+        except ValueError as e:
+            logger.error("Input texts in batch are not the same length. "
+                         "Stopping.")
+            raise ValueError("Input texts are not the same length.") from e
+
+    def decode(self, sequences: np.ndarray) -> List[str]:
         if not self.vocab:
             logger.error("TextVectorizer not fitted. Call fit first.")
             raise RuntimeError("Vectorizer has not been fitted on any text.")
