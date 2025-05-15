@@ -129,24 +129,31 @@ class Recurrent(Layer):
             previous_hidden_state = previous_hidden_state.reshape(1, -1)
 
         if current_input.shape[1] != self.input_dim:
-            msg = ("Input shape mismatch in forward step. Expected input dim"
-                   f"{self.input_dim}, got {current_input.shape[1]}.")
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(
+                "Recurrent forward step: input shape mismatch. "
+                "Expected input dimension %d, got %s instead.", self.input_dim,
+                current_input.shape[1])
+            raise ValueError(f"Input shape mismatch. Expected input dimension "
+                             f"{self.input_dim}, got {current_input.shape} "
+                             "instead.")
 
         if previous_hidden_state.shape[1] != self.hidden_dim:
-            msg = ("Previous hidden state shape mismatch in forward step. "
-                   f"Expected hidden_dim {self.hidden_dim}, got "
-                   f"{previous_hidden_state.shape[1]}.")
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(
+                "Recurrent forward step: previous hidden state shape "
+                "mismatch. Expected hidden dimension %d, got %s "
+                "instead.", self.hidden_dim, previous_hidden_state.shape)
+            raise ValueError("Previous hidden state shape mismatch. Expected "
+                             f"hidden dimension {self.hidden_dim}, got "
+                             f"{previous_hidden_state.shape} instead.")
 
         if current_input.shape[0] != previous_hidden_state.shape[0]:
-            msg = ("Batch size mismatch between current_input "
-                   f"({current_input.shape[0]}) and previous_hidden_state "
-                   f"({previous_hidden_state.shape[0]}) in forward step.")
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(
+                "Recurrent forward step: batch size mismatch between "
+                "current input (%s) and previous hidden state (%s).",
+                current_input.shape[0], previous_hidden_state.shape[0])
+            raise ValueError("Batch size mismatch. Expected "
+                             f"{current_input.shape[0]}, got "
+                             f"{previous_hidden_state.shape[0]} instead.")
 
         hidden_state_unactivated = (
             current_input @ self._weights_input_hidden +
@@ -161,28 +168,36 @@ class Recurrent(Layer):
                 initial_state: Optional[np.ndarray] = None,
                 **kwargs) -> np.ndarray:
         if inputs.ndim != 3:
-            msg = ("inputs_sequence must be a 3D array (batch_size, seq_len "
-                   f"input_dim), got {inputs.ndim}D array.")
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(
+                "Recurrent forward pass: input sequence ndim mismatch"
+                ". Expected 3D array, got %s instead.", inputs.shape)
+            raise ValueError(
+                "Input sequence ndim mismatch. Expected 3D array, "
+                f"got {inputs.shape} instead.")
 
         batch_size, seq_len, input_dim = inputs.shape
 
         if input_dim != self.input_dim:
-            msg = ("Input dimension mismatch in forward pass. Expected "
-                   f"{self.input_dim}, got {input_dim}.")
-            logger.error(msg)
-            raise ValueError(msg)
+            logger.error(
+                "Recurrent forward pass: input sequence dimension "
+                "mismatch. Expected shape[-1] as %d, got %d instead.",
+                self.input_dim, input_dim)
+            raise ValueError("Input dimension mismatch. Expected shape[-1] to "
+                             f"be {self.input_dim}, got {input_dim} instead.")
 
         if initial_state is None:
             current_hidden_state = (np.zeros((batch_size, self.hidden_dim)))
         else:
             if initial_state.shape != (batch_size, self.hidden_dim):
-                msg = ("Initial shape mismatch in forward pass. Expected ("
-                       f"{batch_size}, {self.hidden_dim}), got "
-                       f"{initial_state.shape}.")
-                logger.error(msg)
-                raise ValueError(msg)
+                logger.error(
+                    "Recurrent forward step: initial hidden state "
+                    "shape mismatch. Expected shape (%d, %d), got "
+                    "%s instead.", batch_size, self.hidden_dim,
+                    initial_state.shape)
+                raise ValueError(
+                    "Initial hidden state shape mismatch. Expected"
+                    f" shape ({batch_size}, {self.hidden_dim}), "
+                    f"got {initial_state.shape} instead.")
             current_hidden_state = initial_state
 
         self._last_inputs = inputs
