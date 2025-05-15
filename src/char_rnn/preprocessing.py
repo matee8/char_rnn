@@ -78,6 +78,8 @@ class Embedding:
             raise ValueError("Index out of bounds.") from e
 
     def backward(self, gradient_outputs: np.ndarray) -> None:
+        batch_size, seq_len, _ = gradient_outputs.shape
+
         if self._last_inputs is None:
             logger.error("Backward passed called before forward pass.")
             raise RuntimeError("Forward pass must be called before backward "
@@ -99,7 +101,7 @@ class Embedding:
         if self.gradients is None:
             self.gradients = np.zeros_like(self._weights)
 
-        for i in range(gradient_outputs.shape[0]):
-            for j in range(gradient_outputs.shape[1]):
+        for i in range(batch_size):
+            for j in range(seq_len):
                 idx = self._last_inputs[i, j]
                 self.gradients[idx] += gradient_outputs[i, j]
