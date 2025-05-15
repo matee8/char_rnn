@@ -89,9 +89,8 @@ class Embedding:
                 "instead.", gradient_outputs.ndim)
             raise ValueError("gradient_outputs should be a 3D array.")
 
-        if (gradient_outputs.shape[0] != self._last_inputs.shape[0]
-                or gradient_outputs.shape[1] != self._last_inputs.shape[1]
-                or gradient_outputs.shape[2] != self.embed_dim):
+        if (gradient_outputs.shape
+                != (self._last_inputs.shape[:2], self.embed_dim)):
             logger.error("gradient_outputs.shape does not match required "
                          "(batch_size, seq_len, embed_dim) shape.")
             raise ValueError("gradient_outputs.shape does not match output "
