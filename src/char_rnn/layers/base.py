@@ -10,5 +10,5 @@ class Layer(ABC):
         pass
 
     @abstractmethod
-    def backward(self, grad_outputs: np.ndarray) -> np.ndarray:
+    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         pass
