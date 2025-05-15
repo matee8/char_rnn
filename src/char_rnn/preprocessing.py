@@ -18,7 +18,7 @@ class TextVectorizer:
             logger.error("Cannot fit on empty text.")
             raise ValueError("Input text cannot be empty.")
 
-        self.vocab = sorted(list(set(text)))
+        self.vocab = sorted(set(text))
         self._char_to_id = {ch: i for i, ch in enumerate(self.vocab)}
         self._id_to_char = dict(enumerate(self.vocab))
 
@@ -27,35 +27,51 @@ class TextVectorizer:
             logger.error("TextVectorizer not fitted. Call fit first.")
             raise RuntimeError("Vectorizer has not been fitted on any text.")
 
-        sequences = []
-        for text in texts:
-            try:
-                sequences.append([self._char_to_id[ch] for ch in text])
-            except KeyError as e:
-                logger.error("Unknown character: %s.", e.args[0])
-                raise ValueError(
-                    f"Character {e.args[0]} not in vocabulary.") from e
+        if not texts:
+            logger.error("No texts provided to encode.")
+            raise ValueError("Input texts list is empty.")
 
-        try:
-            return np.array(sequences)
-        except ValueError as e:
-            logger.error("Input texts in batch are not the same length. "
-                         "Stopping.")
-            raise ValueError("Input texts are not the same length.") from e
+        batch_size = len(texts)
+        seq_len = len(texts[0])
+        arr = np.zeros((batch_size, seq_len), dtype=int)
+
+        for i, txt in enumerate(texts):
+            if len(txt) != seq_len:
+                logger.error("Input texts have different lenghts.")
+                raise ValueError("All texts must have the same length.")
+
+            for j, ch in enumerate(txt):
+                if ch not in self._char_to_id:
+                    logger.error("Unknown character: %s", ch)
+                    raise ValueError(f"Character '{ch}' not in vocabulary.")
+
+                arr[i, j] = self._char_to_id[ch]
+
+        return arr
 
     def decode(self, sequences: np.ndarray) -> List[str]:
         if not self.vocab:
-            logger.error("TextVectorizer not fitted. Call fit first.")
-            raise RuntimeError("Vectorizer has not been fitted on any text.")
+            logger.error("Vectorizer not fitted. Call fit() first.")
+            raise RuntimeError("Call fit() before decode().")
 
-        try:
-            texts = []
-            for seq in sequences:
-                texts.append("".join([self._id_to_char[id] for id in seq]))
-            return texts
-        except KeyError as e:
-            logger.error("Unknown character: %s.", e)
-            raise ValueError(f"Character {e} not in vocabulary.") from e
+        if sequences.ndim != 2:
+            logger.error("sequences must be 2D, got %s.", sequences.shape)
+            raise ValueError("Input array must be 2D.")
+
+        texts: List[str] = []
+        for row in sequences:
+            chars = []
+
+            for idx in row:
+                idx = int(idx)
+                if idx not in self._id_to_char:
+                    logger.error("Unknown ID: %d.", idx)
+                    raise ValueError(f"ID {idx} not in vocabulary.")
+                chars.append(self._id_to_char[idx])
+
+            texts.append("".join(chars))
+
+        return texts
 
 
 class Embedding:
