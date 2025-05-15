@@ -69,10 +69,10 @@ class TextVectorizer:
                          sequences.dtype)
             raise ValueError("Input sequences must be of type int.")
 
-        texts = []
+        texts: List[str] = []
 
         for seq_idx, sequence in enumerate(sequences):
-            chars = []
+            chars: List[str] = []
 
             for idx in sequence:
                 idx = int(idx)
