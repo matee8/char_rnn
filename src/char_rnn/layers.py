@@ -1,162 +1,249 @@
 import logging
-from typing import Optional
+from abc import ABC, abstractmethod
+from typing import Optional, Union
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-class Recurrent:
+class Layer(ABC):
+
+    @abstractmethod
+    def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
+        pass
+
+
+class Embedding(Layer):
+
+    def __init__(self, vocab_size: int, embed_dim: int) -> None:
+        if vocab_size <= 0:
+            logger.error("Vocabulary size must be positive, got %d.",
+                         vocab_size)
+            raise ValueError("Vocabulary size must be positive.")
+
+        if embed_dim <= 0:
+            logger.error("Embedding dimension must be positive, got %d.",
+                         embed_dim)
+            raise ValueError("Embedding dimension must be positive.")
+
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self._weights = np.random.randn(vocab_size, embed_dim) * 0.01
+        self.gradients = np.zeros_like(self._weights)
+        self._last_inputs: Optional[np.ndarray] = None
+
+    def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
+        self._last_inputs = inputs
+
+        try:
+            embedded_outputs = self._weights[inputs]
+        except IndexError as e:
+            offending_indices = inputs[inputs >= self.vocab_size]
+            offending_index: Union[str, int] = (offending_indices[0]
+                                                if offending_indices.size > 0
+                                                else "unknown")
+            logger.error(
+                "Index %s out of bounds for vocab_size %d during "
+                "embedding.", offending_index, self.vocab_size)
+            raise ValueError("Input contains indices out of bounds for "
+                             f"vocabulary size {self.vocab_size}. Found index:"
+                             f"{offending_index}.") from e
+
+        return embedded_outputs
+
+    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
+        if self._last_inputs is None:
+            logger.error("Embedding backward pass called before forward pass.")
+            raise RuntimeError("Forward pass must be called before backward "
+                               "pass for Embedding Layer.")
+
+        if output_gradients.ndim != 3:
+            logger.error(
+                "Embedding backward pass: output_gradients ndim "
+                "mismatch. Expected 3, got %d.", output_gradients.ndim)
+            raise ValueError("Output gradients ndim mismatch. Expected 3, got "
+                             f"{output_gradients.ndim}.")
+
+        expected_shape = (self._last_inputs.shape[0],
+                          self._last_inputs.shape[1], self.embed_dim)
+        if output_gradients.shape != expected_shape:
+            logger.error(
+                "Embedding backward pass: output_gradients shape "
+                "mismatch. Expected %s, got %s.", expected_shape,
+                output_gradients.shape)
+            raise ValueError(
+                "Output gradients shape mismatch. Expected "
+                f"{expected_shape}, got {output_gradients.shape}.")
+
+        self.gradients.fill(0.0)
+
+        flat_indices = self._last_inputs.ravel()
+        reshaped_output_gradients = output_gradients.reshape(
+            -1, self.embed_dim)
+        np.add.at(self.gradients, flat_indices, reshaped_output_gradients)
+
+        return self.gradients
+
+
+class Recurrent(Layer):
 
     def __init__(self, input_dim: int, hidden_dim: int) -> None:
-        if input_dim <= 0 or hidden_dim <= 0:
-            logger.error("Input size or hidden size initialized to "
-                         "non-positive.")
-            raise ValueError("Input size and hidden size must be positive.")
+        if input_dim <= 0:
+            logger.error("Input dimension must be positive, got %d.",
+                         input_dim)
+            raise ValueError("Input dimension must be positive.")
+
+        if hidden_dim <= 0:
+            logger.error("Hidden dimension must be positive, got %d.",
+                         hidden_dim)
+            raise ValueError("Hidden dimension must be positive.")
 
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
 
-        self._weights_input_hidden = np.random.randn(input_dim,
-                                                     hidden_dim) * 0.01
-        self._weights_hidden_hidden = np.random.randn(hidden_dim,
-                                                      hidden_dim) * 0.01
+        self._weights_input_hidden = (np.random.randn(input_dim, hidden_dim) *
+                                      0.01)
+        self._weights_hidden_hidden = (
+            np.random.randn(hidden_dim, hidden_dim) * 0.01)
         self._hidden_bias = np.zeros((1, hidden_dim))
 
-        self.gradients_input_hidden: Optional[np.ndarray] = None
-        self.gradients_hidden_hidden: Optional[np.ndarray] = None
-        self.gradients_hidden_bias: Optional[np.ndarray] = None
+        self.gradients_input_hidden = np.zeros_like(self._weights_input_hidden)
+        self.gradients_hidden_hidden = (np.zeros_like(
+            self._weights_hidden_hidden))
+        self.gradients_bias = np.zeros_like(self._hidden_bias)
 
         self._last_inputs: Optional[np.ndarray] = None
         self._last_hidden_states: Optional[np.ndarray] = None
 
-    def forward_step(self,
-                     inputs: np.ndarray,
-                     previous_hidden: np.ndarray | None = None) -> np.ndarray:
-        if inputs is not None and inputs.ndim == 1:
-            inputs = inputs.reshape(1, inputs.shape[-1], copy=False)
+    def forward_step(self, current_input: np.ndarray,
+                     previous_hidden_state: np.ndarray) -> np.ndarray:
+        if current_input.ndim == 1:
+            current_input = current_input.reshape(1, -1)
 
-        if previous_hidden is not None and previous_hidden.ndim == 1:
-            previous_hidden = (previous_hidden.reshape(
-                1, previous_hidden.shape[-1]))
+        if previous_hidden_state.ndim == 1:
+            previous_hidden_state = previous_hidden_state.reshape(1, -1)
 
-        if inputs.shape[1] != self.input_dim:
-            logger.error(
-                "Input shape mismatch. Expected seq_len (shape[1]) to "
-                "be %d, got %d instead.", self.input_dim, inputs.shape[1])
-            raise ValueError("Input shape mismatch. Expected seq_len "
-                             f"(shape[1]) to be {self.input_dim}, got "
-                             f"{inputs.shape[1]}")
+        if current_input.shape[1] != self.input_dim:
+            msg = ("Input shape mismatch in forward step. Expected input dim"
+                   f"{self.input_dim}, got {current_input.shape[1]}.")
+            logger.error(msg)
+            raise ValueError(msg)
 
-        if (previous_hidden is not None
-                and previous_hidden.shape[-1] != self.hidden_dim):
-            logger.error(
-                "Previous hidden state shape mismatch. Expected hidden_dim "
-                "(shape[1]) to be %d, got %d instead.", self.hidden_dim,
-                previous_hidden.shape[-1])
-            raise ValueError(
-                "Previous hidden state shape mismatch. Expected hidden_dim "
-                f"(shape[1])to be {self.hidden_dim}, got"
-                f"{previous_hidden.shape[-1]} instead.")
+        if previous_hidden_state.shape[1] != self.hidden_dim:
+            msg = ("Previous hidden state shape mismatch in forward step. "
+                   f"Expected hidden_dim {self.hidden_dim}, got "
+                   f"{previous_hidden_state.shape[1]}.")
+            logger.error(msg)
+            raise ValueError(msg)
 
-        if previous_hidden is None:
-            previous_hidden = (np.zeros(
-                self.hidden_dim * inputs.shape[0]).reshape(inputs.shape[0],
-                                                           self.hidden_dim,
-                                                           copy=False))
+        if current_input.shape[0] != previous_hidden_state.shape[0]:
+            msg = ("Batch size mismatch between current_input "
+                   f"({current_input.shape[0]}) and previous_hidden_state "
+                   f"({previous_hidden_state.shape[0]}) in forward step.")
+            logger.error(msg)
+            raise ValueError(msg)
 
-        if self._last_inputs is None:
-            self._last_inputs = inputs[:, np.newaxis, :]
+        hidden_state_unactivated = (
+            current_input @ self._weights_input_hidden +
+            previous_hidden_state @ self._weights_hidden_hidden +
+            self._hidden_bias)
+        current_hidden_state = np.tanh(hidden_state_unactivated)
+
+        return current_hidden_state
+
+    def forward(self,
+                inputs: np.ndarray,
+                initial_state: Optional[np.ndarray] = None,
+                **kwargs) -> np.ndarray:
+        if inputs.ndim != 3:
+            msg = ("inputs_sequence must be a 3D array (batch_size, seq_len "
+                   f"input_dim), got {inputs.ndim}D array.")
+            logger.error(msg)
+            raise ValueError(msg)
+
+        batch_size, seq_len, input_dim = inputs.shape
+
+        if input_dim != self.input_dim:
+            msg = ("Input dimension mismatch in forward pass. Expected "
+                   f"{self.input_dim}, got {input_dim}.")
+            logger.error(msg)
+            raise ValueError(msg)
+
+        if initial_state is None:
+            current_hidden_state = (np.zeros((batch_size, self.hidden_dim)))
         else:
-            self._last_inputs = (np.append(self._last_inputs,
-                                           inputs[:, np.newaxis, :],
-                                           axis=1))
-
-        if self._last_hidden_states is None:
-            self._last_hidden_states = previous_hidden[:, np.newaxis, :]
-
-        hidden_states = np.tanh(inputs @ self._weights_input_hidden +
-                                previous_hidden @ self._weights_hidden_hidden +
-                                self._hidden_bias)
-
-        self._last_hidden_states = (np.append(self._last_hidden_states,
-                                              hidden_states[:, np.newaxis, :],
-                                              axis=1))
-
-        return hidden_states
-
-    def forward(self, inputs: np.ndarray) -> np.ndarray:
-        batch_size, seq_len, _ = inputs.shape
+            if initial_state.shape != (batch_size, self.hidden_dim):
+                msg = ("Initial shape mismatch in forward pass. Expected ("
+                       f"{batch_size}, {self.hidden_dim}), got "
+                       f"{initial_state.shape}.")
+                logger.error(msg)
+                raise ValueError(msg)
+            current_hidden_state = initial_state
 
         self._last_inputs = inputs
-
-        hidden_states = np.zeros((batch_size, self.hidden_dim))
-        self._last_hidden_states = np.zeros(
-            (batch_size, seq_len + 1, self.hidden_dim))
-        self._last_hidden_states[:, 0] = hidden_states
+        self._last_hidden_states = (np.zeros(
+            (batch_size, seq_len + 1, self.hidden_dim)))
+        self._last_hidden_states[:, 0, :] = current_hidden_state
 
         for t in range(seq_len):
-            hidden_states = np.tanh(
-                (inputs[:, t] @ self._weights_input_hidden +
-                 hidden_states @ self._weights_hidden_hidden +
-                 self._hidden_bias))
-            self._last_hidden_states[:, t + 1] = hidden_states
+            current_input = inputs[:, t, :]
+            current_hidden_state = (self.forward_step(current_input,
+                                                      current_hidden_state))
+            self._last_hidden_states[:, t + 1, :] = current_hidden_state
 
-        return hidden_states
+        return current_hidden_state
 
-    def backward(self, final_gradients: np.ndarray) -> np.ndarray:
+    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         if self._last_inputs is None or self._last_hidden_states is None:
-            logger.error("Backward pass called before forward pass.")
-            raise RuntimeError("Forward pass must be called before backward.")
-
-        if final_gradients.shape != (self._last_inputs.shape[0],
-                                     self.hidden_dim):
-            logger.error(
-                "Final gradients shape mismatch. Expected (%d, %d), got"
-                " %s.", self._last_inputs.shape[0], self.hidden_dim,
-                final_gradients.shape)
+            logger.error("Recurrent backward pass called before forward pass "
+                         "or history is missing.")
             raise RuntimeError(
-                f"Final gradients shape mismatch. Expected ({self._last_inputs.shape[0]}, "
-                f"{self.hidden_dim}), got {final_gradients.shape}")
+                "Forward pass must be called to populate history"
+                " before backward pass.")
+
+        if output_gradients.ndim != 2:
+            logger.error(
+                "Output gradients ndim mismatch in backward pass. "
+                "Expected 2D, got %s.", output_gradients.shape)
+            raise ValueError("Output gradients must be 2D array.")
 
         batch_size, seq_len, _ = self._last_inputs.shape
+        expected_gradient_shape = (batch_size, self.hidden_dim)
+        if output_gradients.shape != expected_gradient_shape:
+            msg = ("Final hidden state gradients shape mismatch. "
+                   f"Expected {expected_gradient_shape}, got "
+                   f"{output_gradients.shape}")
+            logger.error(msg)
+            raise ValueError(msg)
 
-        if self.gradients_input_hidden is None:
-            self.gradients_input_hidden = np.zeros_like(
-                self._weights_input_hidden)
-        else:
-            self.gradients_input_hidden.fill(0.0)
+        self.gradients_input_hidden.fill(0.0)
+        self.gradients_hidden_hidden.fill(0.0)
+        self.gradients_bias.fill(0.0)
 
-        if self.gradients_hidden_hidden is None:
-            self.gradients_hidden_hidden = np.zeros_like(
-                self._weights_hidden_hidden)
-        else:
-            self.gradients_hidden_hidden.fill(0.0)
-
-        if self.gradients_hidden_bias is None:
-            self.gradients_hidden_bias = np.zeros_like(self._hidden_bias)
-        else:
-            self.gradients_hidden_bias.fill(0.0)
-
-        input_sequence_gradients = np.zeros(
-            (batch_size, seq_len, self.input_dim))
-
-        hidden_gradients = final_gradients.copy()
+        input_sequence_gradients = np.zeros_like(self._last_inputs)
+        current_gradients = output_gradients.copy()
 
         for t in reversed(range(seq_len)):
-            current_hidden = self._last_hidden_states[:, t + 1]
-            previous_hidden = self._last_hidden_states[:, t]
-            current_inputs = self._last_inputs[:, t]
+            current_hidden_states = self._last_hidden_states[:, t + 1, :]
+            previous_hidden_states = self._last_hidden_states[:, t, :]
+            current_inputs = self._last_inputs[:, t, :]
 
-            pre_activation_gradients = hidden_gradients * (1 -
-                                                           current_hidden**2)
-            self.gradients_input_hidden += current_inputs.T @ pre_activation_gradients
-            self.gradients_hidden_hidden += previous_hidden.T @ pre_activation_gradients
-            self.gradients_hidden_bias += pre_activation_gradients.sum(axis=0)
+            tanh_derivative = 1 - current_hidden_states**2
 
-            input_gradients = pre_activation_gradients @ self._weights_input_hidden.T
-            input_sequence_gradients[:, t] = input_gradients
+            gradient_pre_tanh = current_gradients * tanh_derivative
 
-            hidden_gradients = previous_hidden
+            self.gradients_input_hidden += current_inputs.T @ gradient_pre_tanh
+            self.gradients_hidden_hidden += (
+                previous_hidden_states.T @ gradient_pre_tanh)
+            self.gradients_bias += gradient_pre_tanh.sum(axis=0, keepdims=True)
+
+            input_sequence_gradients[:, t, :] = (
+                tanh_derivative @ self._weights_input_hidden.T)
+            current_gradients = tanh_derivative @ self._weights_hidden_hidden.T
 
         return input_sequence_gradients
