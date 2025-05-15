@@ -92,11 +92,18 @@ class Embedding:
             raise ValueError("gradient_outputs should be a 3D array.")
 
         if (gradient_outputs.shape
-                != (self._last_inputs.shape[:2], self.embed_dim)):
-            logger.error("gradient_outputs.shape does not match required "
-                         "(batch_size, seq_len, embed_dim) shape.")
-            raise ValueError("gradient_outputs.shape does not match output "
-                             "shape.")
+                != (self._last_inputs.shape[0], self._last_inputs.shape[1],
+                    self.embed_dim)):
+            logger.error(
+                "Last layer's gradient output shape mismatch. Expected"
+                " (%d, %d, %d), got %s.", self._last_inputs.shape[0],
+                self._last_inputs.shape[1], self.embed_dim,
+                gradient_outputs.shape)
+            raise ValueError(
+                "Last layer's gradient output shape mismatch. Expected"
+                f" ({self._last_inputs.shape[0]}, "
+                f"{self._last_inputs.shape[1]}, {self.embed_dim}), "
+                f"got {gradient_outputs.shape}.")
 
         if self.gradients is None:
             self.gradients = np.zeros_like(self._weights)
