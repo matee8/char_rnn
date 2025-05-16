@@ -7,7 +7,7 @@ import logging
 import numpy as np
 
 from char_rnn.preprocessing import TextVectorizer
-from char_rnn.layers import Embedding, Recurrent
+from char_rnn.layers import Dense, Embedding, Recurrent
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(levelname)s - %(message)s")
@@ -23,15 +23,21 @@ def main():
         texts = ["hello", "world"]
         indices = vectorizer.encode(texts)
 
-        embedding_layer = Embedding(vocab_size=len(vectorizer.vocab), embed_dim=5)
+        embedding_layer = Embedding(vocab_size=len(vectorizer.vocab),
+                                    embed_dim=5)
         embeddings = embedding_layer.forward(indices)
 
         recurrent_layer = Recurrent(input_dim=5, hidden_dim=20)
         final_hidden_states = recurrent_layer.forward(embeddings)
 
-        dummy_final_gradients = np.random.randn(*final_hidden_states.shape) * 1
-        recurrent_layer_input_gradients = recurrent_layer.backward(
+        dense_layer = Dense(input_dim=20, output_dim=20)
+        probas = dense_layer.forward(final_hidden_states)
+
+        dummy_final_gradients = np.random.randn(*probas.shape) * 1
+        dense_layer_input_gradients = dense_layer.backward(
             dummy_final_gradients)
+        recurrent_layer_input_gradients = recurrent_layer.backward(
+            dense_layer_input_gradients)
         print(embedding_layer.backward(recurrent_layer_input_gradients))
     except Exception as e:
         print(e)

@@ -53,7 +53,8 @@ class Embedding(Layer):
 
     def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         if self._last_inputs is None:
-            raise RuntimeError("Forward pass must be called before backward.")
+            raise RuntimeError(
+                "Forward pass must be called before backward pass.")
 
         if output_gradients.ndim != 3:
             raise ValueError(
@@ -176,8 +177,7 @@ class Recurrent(Layer):
     def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         if self._last_inputs is None or self._last_hidden_states is None:
             raise RuntimeError(
-                "Forward pass must be called to populate history"
-                " before backward pass.")
+                "Forward pass must be called before backward pass.")
 
         if output_gradients.ndim != 2:
             raise ValueError(
@@ -240,6 +240,7 @@ class Dense(Layer):
         self.gradients_bias: Optional[np.ndarray] = None
 
         self._last_inputs: Optional[np.ndarray] = None
+        self._last_outputs: Optional[np.ndarray] = None
 
     def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
         if inputs.ndim != 2:
@@ -252,10 +253,52 @@ class Dense(Layer):
 
         self._last_inputs = inputs
 
-        outputs_before_activation = inputs @ self._weights + self._bias
+        linear_output = inputs @ self._weights + self._bias
 
-        stable_outputs = (
-            np.exp(outputs_before_activation -
-                   np.max(outputs_before_activation, axis=1, keepdims=True)))
+        stabilized_linear_output = linear_output - np.max(
+            linear_output, axis=1, keepdims=True)
 
-        return stable_outputs / np.sum(stable_outputs, axis=1, keepdims=True)
+        exp_outputs = np.exp(stabilized_linear_output)
+
+        softmax_output = exp_outputs / np.sum(
+            exp_outputs, axis=1, keepdims=True)
+
+        self._last_outputs = softmax_output
+
+        return softmax_output
+
+    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
+        if self._last_inputs is None:
+            raise RuntimeError(
+                "Forward pass must be called before backward pass.")
+
+        if self._last_outputs is None:
+            raise RuntimeError(
+                "Forward pass must be called before backward pass.")
+
+        if output_gradients.ndim != 2:
+            raise ValueError("Output gradients ndim mismatch. Expected 2D "
+                             f"array, got {output_gradients.shape} instead.")
+
+        if output_gradients.shape != self._last_outputs.shape:
+            raise ValueError("Output gradients shape mismatch. Expected "
+                             f"{self._last_outputs.shape}, got "
+                             f"{output_gradients.shape}.")
+
+        output_gradients_times_softmax = output_gradients * self._last_outputs
+
+        sum_output_gradient_times_softmax = np.sum(
+            output_gradients_times_softmax, axis=1, keepdims=True)
+
+        linear_output_gradient = (
+            self._last_outputs *
+            (output_gradients - sum_output_gradient_times_softmax))
+
+        self.gradients = self._last_inputs.T @ linear_output_gradient
+        self.gradients_bias = np.sum(linear_output_gradient,
+                                     axis=0,
+                                     keepdims=True)
+
+        input_gradients = linear_output_gradient @ self._weights.T
+
+        return input_gradients
