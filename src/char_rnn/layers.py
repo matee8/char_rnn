@@ -262,3 +262,55 @@ class Recurrent(Layer):
             current_gradients = tanh_derivative @ self._weights_hidden_hidden.T
 
         return input_sequence_gradients
+
+
+class Dense(Layer):
+
+    def __init__(self, input_dim: int, output_dim: int) -> None:
+        if input_dim <= 0:
+            logger.error("Input dimension must be positive, got %d.",
+                         input_dim)
+            raise ValueError("Input dimension must be positive.")
+
+        if output_dim <= 0:
+            logger.error("Output dimension must be positive, got %d.",
+                         output_dim)
+            raise ValueError("Output dimension must be positive.")
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+        self._weights = np.random.randn(input_dim, output_dim) * 0.01
+        self._bias = np.zeros((1, output_dim))
+
+        self.gradients: Optional[np.ndarray] = None
+        self.gradients_bias: Optional[np.ndarray] = None
+
+        self._last_inputs: Optional[np.ndarray] = None
+
+    def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
+        if inputs.ndim != 2:
+            logger.error(
+                "Dense layer forward pass: input data ndim mismatch. "
+                "Expected 2, got %d instead.", inputs.ndim)
+            raise ValueError("Inputs ndim mismatch. Expected 2, got "
+                             f"{inputs.ndim} instead.")
+
+        if inputs.shape[-1] != self.input_dim:
+            logger.error(
+                "Dense layer forward pass: input data shape[-1] "
+                "mismatch. Expected %d, got %s instead.", self.input_dim,
+                inputs.shape)
+            raise ValueError("Input data shape mismatch. Expected shape[-1] "
+                             f"to be {self.input_dim}, got {inputs.shape} "
+                             "instead")
+
+        self._last_inputs = inputs
+
+        outputs_before_activation = inputs @ self._weights + self._bias
+
+        stable_outputs = (
+            np.exp(outputs_before_activation -
+                   np.max(outputs_before_activation, axis=1, keepdims=True)))
+
+        return stable_outputs / np.sum(stable_outputs, axis=1, keepdims=True)
