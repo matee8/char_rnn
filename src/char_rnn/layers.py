@@ -22,14 +22,12 @@ class Embedding(Layer):
 
     def __init__(self, vocab_size: int, embed_dim: int) -> None:
         if vocab_size <= 0:
-            logger.error("Vocabulary size must be positive, got %d.",
-                         vocab_size)
-            raise ValueError("Vocabulary size must be positive.")
+            raise ValueError(
+                f"Vocabulary size must be positive, got {vocab_size}.")
 
         if embed_dim <= 0:
-            logger.error("Embedding dimension must be positive, got %d.",
-                         embed_dim)
-            raise ValueError("Embedding dimension must be positive.")
+            raise ValueError(
+                f"Embedding dimension must be positive, got {embed_dim}.")
 
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
@@ -47,9 +45,6 @@ class Embedding(Layer):
             offending_index: Union[str, int] = (offending_indices[0]
                                                 if offending_indices.size > 0
                                                 else "unknown")
-            logger.error(
-                "Index %s out of bounds for vocab_size %d during "
-                "embedding.", offending_index, self.vocab_size)
             raise ValueError("Input contains indices out of bounds for "
                              f"vocabulary size {self.vocab_size}. Found index:"
                              f"{offending_index}.") from e
@@ -58,24 +53,16 @@ class Embedding(Layer):
 
     def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         if self._last_inputs is None:
-            logger.error("Embedding backward pass called before forward pass.")
-            raise RuntimeError("Forward pass must be called before backward "
-                               "pass for Embedding Layer.")
+            raise RuntimeError("Forward pass must be called before backward.")
 
         if output_gradients.ndim != 3:
-            logger.error(
-                "Embedding backward pass: output_gradients ndim "
-                "mismatch. Expected 3, got %d.", output_gradients.ndim)
-            raise ValueError("Output gradients ndim mismatch. Expected 3, got "
-                             f"{output_gradients.ndim}.")
+            raise ValueError(
+                "Output gradients ndim mismatch. Expected 3D array"
+                f", got {output_gradients.shape}.")
 
         expected_shape = (self._last_inputs.shape[0],
                           self._last_inputs.shape[1], self.embed_dim)
         if output_gradients.shape != expected_shape:
-            logger.error(
-                "Embedding backward pass: output_gradients shape "
-                "mismatch. Expected %s, got %s.", expected_shape,
-                output_gradients.shape)
             raise ValueError(
                 "Output gradients shape mismatch. Expected "
                 f"{expected_shape}, got {output_gradients.shape}.")
@@ -94,14 +81,12 @@ class Recurrent(Layer):
 
     def __init__(self, input_dim: int, hidden_dim: int) -> None:
         if input_dim <= 0:
-            logger.error("Input dimension must be positive, got %d.",
-                         input_dim)
-            raise ValueError("Input dimension must be positive.")
+            raise ValueError(
+                f"Input dimension must be positive, got {input_dim}.")
 
         if hidden_dim <= 0:
-            logger.error("Hidden dimension must be positive, got %d.",
-                         hidden_dim)
-            raise ValueError("Hidden dimension must be positive.")
+            raise ValueError(
+                f"Hidden dimension must be positive, got {hidden_dim}.")
 
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -129,31 +114,18 @@ class Recurrent(Layer):
             previous_hidden_state = previous_hidden_state.reshape(1, -1)
 
         if current_input.shape[1] != self.input_dim:
-            logger.error(
-                "Recurrent forward step: input shape mismatch. "
-                "Expected input dimension %d, got %s instead.", self.input_dim,
-                current_input.shape[1])
             raise ValueError(f"Input shape mismatch. Expected input dimension "
-                             f"{self.input_dim}, got {current_input.shape} "
-                             "instead.")
+                             f"{self.input_dim}, got {current_input.shape}.")
 
         if previous_hidden_state.shape[1] != self.hidden_dim:
-            logger.error(
-                "Recurrent forward step: previous hidden state shape "
-                "mismatch. Expected hidden dimension %d, got %s "
-                "instead.", self.hidden_dim, previous_hidden_state.shape)
             raise ValueError("Previous hidden state shape mismatch. Expected "
                              f"hidden dimension {self.hidden_dim}, got "
-                             f"{previous_hidden_state.shape} instead.")
+                             f"{previous_hidden_state.shape}.")
 
         if current_input.shape[0] != previous_hidden_state.shape[0]:
-            logger.error(
-                "Recurrent forward step: batch size mismatch between "
-                "current input (%s) and previous hidden state (%s).",
-                current_input.shape[0], previous_hidden_state.shape[0])
             raise ValueError("Batch size mismatch. Expected "
                              f"{current_input.shape[0]}, got "
-                             f"{previous_hidden_state.shape[0]} instead.")
+                             f"{previous_hidden_state.shape[0]}.")
 
         hidden_state_unactivated = (
             current_input @ self._weights_input_hidden +
@@ -168,36 +140,24 @@ class Recurrent(Layer):
                 initial_state: Optional[np.ndarray] = None,
                 **kwargs) -> np.ndarray:
         if inputs.ndim != 3:
-            logger.error(
-                "Recurrent forward pass: input sequence ndim mismatch"
-                ". Expected 3D array, got %s instead.", inputs.shape)
             raise ValueError(
                 "Input sequence ndim mismatch. Expected 3D array, "
-                f"got {inputs.shape} instead.")
+                f"got {inputs.shape}.")
 
         batch_size, seq_len, input_dim = inputs.shape
 
         if input_dim != self.input_dim:
-            logger.error(
-                "Recurrent forward pass: input sequence dimension "
-                "mismatch. Expected shape[-1] as %d, got %d instead.",
-                self.input_dim, input_dim)
             raise ValueError("Input dimension mismatch. Expected shape[-1] to "
-                             f"be {self.input_dim}, got {input_dim} instead.")
+                             f"be {self.input_dim}, got {input_dim}.")
 
         if initial_state is None:
             current_hidden_state = (np.zeros((batch_size, self.hidden_dim)))
         else:
             if initial_state.shape != (batch_size, self.hidden_dim):
-                logger.error(
-                    "Recurrent forward step: initial hidden state "
-                    "shape mismatch. Expected shape (%d, %d), got "
-                    "%s instead.", batch_size, self.hidden_dim,
-                    initial_state.shape)
                 raise ValueError(
                     "Initial hidden state shape mismatch. Expected"
                     f" shape ({batch_size}, {self.hidden_dim}), "
-                    f"got {initial_state.shape} instead.")
+                    f"got {initial_state.shape}.")
             current_hidden_state = initial_state
 
         self._last_inputs = inputs
@@ -215,26 +175,21 @@ class Recurrent(Layer):
 
     def backward(self, output_gradients: np.ndarray) -> np.ndarray:
         if self._last_inputs is None or self._last_hidden_states is None:
-            logger.error("Recurrent backward pass called before forward pass "
-                         "or history is missing.")
             raise RuntimeError(
                 "Forward pass must be called to populate history"
                 " before backward pass.")
 
         if output_gradients.ndim != 2:
-            logger.error(
-                "Output gradients ndim mismatch in backward pass. "
-                "Expected 2D, got %s.", output_gradients.shape)
-            raise ValueError("Output gradients must be 2D array.")
+            raise ValueError(
+                "Output gradients ndim mismatch. Expected 2D array"
+                f", got {output_gradients.shape} instead.")
 
         batch_size, seq_len, _ = self._last_inputs.shape
         expected_gradient_shape = (batch_size, self.hidden_dim)
         if output_gradients.shape != expected_gradient_shape:
-            msg = ("Final hidden state gradients shape mismatch. "
-                   f"Expected {expected_gradient_shape}, got "
-                   f"{output_gradients.shape}")
-            logger.error(msg)
-            raise ValueError(msg)
+            raise ValueError("Final hidden state gradients shape mismatch. "
+                             f"Expected {expected_gradient_shape}, got "
+                             f"{output_gradients.shape}.")
 
         self.gradients_input_hidden.fill(0.0)
         self.gradients_hidden_hidden.fill(0.0)
@@ -268,14 +223,12 @@ class Dense(Layer):
 
     def __init__(self, input_dim: int, output_dim: int) -> None:
         if input_dim <= 0:
-            logger.error("Input dimension must be positive, got %d.",
-                         input_dim)
-            raise ValueError("Input dimension must be positive.")
+            raise ValueError(
+                f"Input dimension must be positive, got {input_dim}.")
 
         if output_dim <= 0:
-            logger.error("Output dimension must be positive, got %d.",
-                         output_dim)
-            raise ValueError("Output dimension must be positive.")
+            raise ValueError(
+                f"Output dimension must be positive, got {output_dim}.")
 
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -290,20 +243,12 @@ class Dense(Layer):
 
     def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
         if inputs.ndim != 2:
-            logger.error(
-                "Dense layer forward pass: input data ndim mismatch. "
-                "Expected 2, got %d instead.", inputs.ndim)
-            raise ValueError("Inputs ndim mismatch. Expected 2, got "
-                             f"{inputs.ndim} instead.")
+            raise ValueError("Inputs ndim mismatch. Expected 2D array, got "
+                             f"{inputs.shape} instead.")
 
         if inputs.shape[-1] != self.input_dim:
-            logger.error(
-                "Dense layer forward pass: input data shape[-1] "
-                "mismatch. Expected %d, got %s instead.", self.input_dim,
-                inputs.shape)
             raise ValueError("Input data shape mismatch. Expected shape[-1] "
-                             f"to be {self.input_dim}, got {inputs.shape} "
-                             "instead")
+                             f"to be {self.input_dim}, got {inputs.shape}.")
 
         self._last_inputs = inputs
 
