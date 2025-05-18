@@ -3,14 +3,16 @@
 # pylint: disable=invalid-name
 
 import logging
+from typing import List
 
 import numpy as np
 
 from char_rnn.preprocessing import TextVectorizer
 from char_rnn.layers import Dense, Embedding, Recurrent
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 logger = logging.getLogger(__name__)
 
@@ -18,29 +20,54 @@ logger = logging.getLogger(__name__)
 def main():
     try:
         vectorizer = TextVectorizer()
-        alphabet = "abcdefghijklmnopqrstuvwxyz "
+
+        alphabet: str = "abcdefghijklmnopqrstuvwxyz "
         vectorizer.fit(alphabet)
-        texts = ["hello", "world"]
-        indices = vectorizer.encode(texts)
 
-        embedding_layer = Embedding(vocab_size=len(vectorizer.vocab),
-                                    embed_dim=5)
-        embeddings = embedding_layer.forward(indices)
+        texts: List[str] = ["hello", "world"]
 
-        recurrent_layer = Recurrent(input_dim=5, hidden_dim=20)
-        final_hidden_states = recurrent_layer.forward(embeddings)
+        x_indices = vectorizer.encode(texts)
+    except ValueError as e:
+        logger.error("Error during text vectorization: %s.", e, exc_info=True)
+        return
+    except RuntimeError as e:
+        logger.error("Runtime error during text vectorization: %s.",
+                     e,
+                     exc_info=True)
+        return
 
-        dense_layer = Dense(input_dim=20, output_dim=20)
-        probas = dense_layer.forward(final_hidden_states)
+    D_e = 16
+    D_h = 128
+    V = vectorizer.vocabulary_size
 
-        dummy_final_gradients = np.random.randn(*probas.shape) * 1
-        dense_layer_input_gradients = dense_layer.backward(
-            dummy_final_gradients)
-        recurrent_layer_input_gradients = recurrent_layer.backward(
-            dense_layer_input_gradients)
-        print(embedding_layer.backward(recurrent_layer_input_gradients))
-    except Exception as e:
-        print(e)
+    try:
+        embedding_layer = Embedding(V, D_e)
+        recurrent_layer = Recurrent(D_e, D_h)
+        dense_layer = Dense(D_h, V)
+
+        y_emb = embedding_layer.forward(x_indices)
+
+        h_t_final = recurrent_layer.forward(y_emb)
+
+        p = dense_layer.forward(h_t_final)
+
+        dL_dp = np.random.randn(*p.shape) * 0.1
+
+        dL_dh_t_final = dense_layer.backward(dL_dp)
+
+        dL_dy_emb = recurrent_layer.backward(dL_dh_t_final)
+
+        embedding_layer.backward(dL_dy_emb)
+
+        logger.info("Forward and backward pass completed.")
+    except ValueError as e:
+        logger.error("Error during network operation: %s.", e, exc_info=True)
+    except RuntimeError as e:
+        logger.error("Runtime error during network operation: %s.",
+                     e,
+                     exc_info=True)
+    except Exception as e: # pylint: disable=broad-exception-caught
+        logger.error("An unexpected error occured: %s.", e, exc_info=True)
 
 
 if __name__ == "__main__":

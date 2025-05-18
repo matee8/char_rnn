@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -9,296 +9,350 @@ logger = logging.getLogger(__name__)
 
 class Layer(ABC):
 
+    def __init__(self, name: Optional[str] = None) -> None:
+        self.name = name or self.__class__.__name__
+        self._last_x: Optional[np.ndarray] = None
+
+    @property
     @abstractmethod
-    def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
+    def params(self) -> Dict[str, np.ndarray]:
+        pass
+
+    @property
+    @abstractmethod
+    def grads(self) -> Dict[str, np.ndarray]:
         pass
 
     @abstractmethod
-    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
+    def forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def backward(self, dL_dy: np.ndarray) -> Optional[np.ndarray]:
         pass
 
 
 class Embedding(Layer):
 
-    def __init__(self, vocab_size: int, embed_dim: int) -> None:
-        if vocab_size <= 0:
+    def __init__(self, V: int, D_e: int, name: Optional[str] = None) -> None:
+        super().__init__(name)
+
+        if V <= 0:
+            raise ValueError(f"Vocabulary size (V) must be positive, got {V}.")
+
+        if D_e <= 0:
             raise ValueError(
-                f"Vocabulary size must be positive, got {vocab_size}.")
+                f"Embedding dimension (D_e) must be positive, got {D_e}.")
 
-        if embed_dim <= 0:
-            raise ValueError(
-                f"Embedding dimension must be positive, got {embed_dim}.")
+        self.V = V
+        self.D_e = D_e
+        self._W_e = np.random.randn(V, D_e) * 0.01
+        self._dL_dW_e = np.zeros_like(self._W_e)
 
-        self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self._weights = np.random.randn(vocab_size, embed_dim) * 0.01
-        self.gradients = np.zeros_like(self._weights)
-        self._last_inputs: Optional[np.ndarray] = None
+        logger.info("%s initialized with V=%d, D_e=%d.", self.name, self.V,
+                    self.D_e)
 
-    def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
-        self._last_inputs = inputs
+    @property
+    def params(self) -> Dict[str, np.ndarray]:
+        return {"W_e": self._W_e}
+
+    @property
+    def grads(self) -> Dict[str, np.ndarray]:
+        return {"W_e": self._dL_dW_e}
+
+    def forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        if x.ndim != 2:
+            raise ValueError("Input shape mismatch. Expected 2D NumPy array, "
+                             f"got {x.ndim}D array with shape {x.shape}.")
+
+        self._last_x = x
 
         try:
-            embedded_outputs = self._weights[inputs]
+            y = self._W_e[x]
         except IndexError as e:
-            offending_indices = inputs[inputs >= self.vocab_size]
-            offending_index: Union[str, int] = (offending_indices[0]
-                                                if offending_indices.size > 0
-                                                else "unknown")
             raise ValueError("Input contains indices out of bounds for "
-                             f"vocabulary size {self.vocab_size}. Found index:"
-                             f"{offending_index}.") from e
+                             f"vocabulary size {self.V}.") from e
 
-        return embedded_outputs
+        logger.debug("%s forward pass: input_shape=%s, output_shape=%s.",
+                     self.name, x.shape, y.shape)
 
-    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
-        if self._last_inputs is None:
-            raise RuntimeError(
-                "Forward pass must be called before backward pass.")
+        return y
 
-        if output_gradients.ndim != 3:
+    def backward(self, dL_dy: np.ndarray) -> Optional[np.ndarray]:
+        if self._last_x is None:
+            raise RuntimeError("Must call forward() before backward()")
+
+        if dL_dy.ndim != 3:
             raise ValueError(
-                "Output gradients ndim mismatch. Expected 3D array"
-                f", got {output_gradients.shape}.")
+                "Output gradients shape mismatch. Expected 3D NumPy array, "
+                f"got {dL_dy.ndim}D array with shape{dL_dy.shape}.")
 
-        expected_shape = (self._last_inputs.shape[0],
-                          self._last_inputs.shape[1], self.embed_dim)
-        if output_gradients.shape != expected_shape:
+        expected_shape = (*self._last_x.shape, self.D_e)
+        if dL_dy.shape != expected_shape:
             raise ValueError(
-                "Output gradients shape mismatch. Expected "
-                f"{expected_shape}, got {output_gradients.shape}.")
+                "Output gradients shape mismatch. Expected NumPy array with "
+                f"shape {expected_shape}, got {dL_dy.shape}.")
 
-        self.gradients.fill(0.0)
+        self._dL_dW_e.fill(0.0)
 
-        flat_indices = self._last_inputs.ravel()
-        reshaped_output_gradients = output_gradients.reshape(
-            -1, self.embed_dim)
-        np.add.at(self.gradients, flat_indices, reshaped_output_gradients)
+        flat_indices = self._last_x.ravel()
+        reshaped_output_gradients = dL_dy.reshape(-1, self.D_e)
+        np.add.at(self._dL_dW_e, flat_indices, reshaped_output_gradients)
 
-        return self.gradients
+        logger.debug("%s backward pass: dL_dy_shape=%s.", self.name,
+                     dL_dy.shape)
+
+        return None
 
 
 class Recurrent(Layer):
 
-    def __init__(self, input_dim: int, hidden_dim: int) -> None:
-        if input_dim <= 0:
+    def __init__(self,
+                 D_in: int,
+                 D_h: int,
+                 name: Optional[str] = None) -> None:
+        super().__init__(name)
+
+        if D_in <= 0:
             raise ValueError(
-                f"Input dimension must be positive, got {input_dim}.")
+                f"Input dimension (D_in) must be positive, got {D_in}.")
 
-        if hidden_dim <= 0:
+        if D_h <= 0:
             raise ValueError(
-                f"Hidden dimension must be positive, got {hidden_dim}.")
+                f"Hidden dimension (D_h) must be positive, got {D_h}.")
 
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
+        self.D_in = D_in
+        self.D_h = D_h
 
-        self._weights_input_hidden = (np.random.randn(input_dim, hidden_dim) *
-                                      0.01)
-        self._weights_hidden_hidden = (
-            np.random.randn(hidden_dim, hidden_dim) * 0.01)
-        self._hidden_bias = np.zeros((1, hidden_dim))
+        self._W_xh = np.random.randn(D_in, D_h) * 0.01
+        self._W_hh = np.random.randn(D_h, D_h) * 0.01
+        self._b_h = np.zeros((1, D_h))
 
-        self.gradients_input_hidden = np.zeros_like(self._weights_input_hidden)
-        self.gradients_hidden_hidden = (np.zeros_like(
-            self._weights_hidden_hidden))
-        self.gradients_bias = np.zeros_like(self._hidden_bias)
+        self._dL_dW_xh = np.zeros_like(self._W_xh)
+        self._dL_dW_hh = np.zeros_like(self._W_hh)
+        self._dL_db_h = np.zeros_like(self._b_h)
 
-        self._last_inputs: Optional[np.ndarray] = None
-        self._last_hidden_states: Optional[np.ndarray] = None
+        self._last_x: Optional[np.ndarray] = None
+        self._last_h_seq: Optional[np.ndarray] = None
 
-    def forward_step(self, current_input: np.ndarray,
-                     previous_hidden_state: np.ndarray) -> np.ndarray:
-        if current_input.ndim == 1:
-            current_input = current_input.reshape(1, -1)
+        logger.info("%s initialized with D_in=%d, D_h=%d.", self.name,
+                    self.D_in, self.D_h)
 
-        if previous_hidden_state.ndim == 1:
-            previous_hidden_state = previous_hidden_state.reshape(1, -1)
+    @property
+    def params(self) -> Dict[str, np.ndarray]:
+        return {"W_xh": self._W_xh, "W_hh": self._W_hh, "b_h": self._b_h}
 
-        if current_input.shape[1] != self.input_dim:
-            raise ValueError(f"Input shape mismatch. Expected input dimension "
-                             f"{self.input_dim}, got {current_input.shape}.")
+    @property
+    def grads(self) -> Dict[str, np.ndarray]:
+        return {
+            "W_xh": self._dL_dW_xh,
+            "W_hh": self._dL_dW_hh,
+            "b_h": self._dL_db_h
+        }
 
-        if previous_hidden_state.shape[1] != self.hidden_dim:
-            raise ValueError("Previous hidden state shape mismatch. Expected "
-                             f"hidden dimension {self.hidden_dim}, got "
-                             f"{previous_hidden_state.shape}.")
+    def forward_step(self, x_t: np.ndarray, h_prev: np.ndarray) -> np.ndarray:
+        if x_t.ndim == 1:
+            x_t = x_t.reshape(1, -1)
 
-        if current_input.shape[0] != previous_hidden_state.shape[0]:
-            raise ValueError("Batch size mismatch. Expected "
-                             f"{current_input.shape[0]}, got "
-                             f"{previous_hidden_state.shape[0]}.")
+        if h_prev.ndim == 1:
+            h_prev = h_prev.reshape(1, -1)
 
-        hidden_state_unactivated = (
-            current_input @ self._weights_input_hidden +
-            previous_hidden_state @ self._weights_hidden_hidden +
-            self._hidden_bias)
-        current_hidden_state = np.tanh(hidden_state_unactivated)
+        if x_t.shape[1] != self.D_in:
+            raise ValueError(
+                "Input feature dimension mismatch. Expected shape[1] to be "
+                f"{self.D_in}, got {x_t.shape[1]} from shape {x_t.shape}.")
 
-        return current_hidden_state
+        if h_prev.shape[1] != self.D_h:
+            raise ValueError(
+                "Hidden state dimension mismatch. Expected shape[1] to be "
+                f"{self.D_h}, got {h_prev.shape[1]} from shape {h_prev.shape}."
+            )
+
+        if x_t.shape[0] != h_prev.shape[0]:
+            raise ValueError(
+                f"Batch size mismatch between x_t ({x_t.shape[0]})"
+                f" and h_prev ({h_prev.shape[0]}).")
+
+        a_h_t = x_t @ self._W_xh + h_prev @ self._W_hh + self._b_h
+
+        h_t = np.tanh(a_h_t)
+
+        return h_t
 
     def forward(self,
-                inputs: np.ndarray,
-                initial_state: Optional[np.ndarray] = None,
+                x: np.ndarray,
+                h_0: Optional[np.ndarray] = None,
                 **kwargs) -> np.ndarray:
-        if inputs.ndim != 3:
+        if x.ndim != 3:
+            raise ValueError("Input shape mismatch. Expected 3D NumPy array, "
+                             f"got {x.ndim}D array with shape {x.shape}.")
+
+        batch_size, seq_len, input_dim = x.shape
+
+        if input_dim != self.D_in:
             raise ValueError(
-                "Input sequence ndim mismatch. Expected 3D array, "
-                f"got {inputs.shape}.")
+                "Input feature dimension mismatch. Expected shape[-1] to be "
+                f"{self.D_in}, got {x.shape[-1]} from shape {x.shape}.")
 
-        batch_size, seq_len, input_dim = inputs.shape
-
-        if input_dim != self.input_dim:
-            raise ValueError("Input dimension mismatch. Expected shape[-1] to "
-                             f"be {self.input_dim}, got {input_dim}.")
-
-        if initial_state is None:
-            current_hidden_state = (np.zeros((batch_size, self.hidden_dim)))
+        expected_h_0_shape = (batch_size, self.D_h)
+        if h_0 is None:
+            h_t = np.zeros(expected_h_0_shape)
         else:
-            if initial_state.shape != (batch_size, self.hidden_dim):
-                raise ValueError(
-                    "Initial hidden state shape mismatch. Expected"
-                    f" shape ({batch_size}, {self.hidden_dim}), "
-                    f"got {initial_state.shape}.")
-            current_hidden_state = initial_state
+            if h_0.shape != expected_h_0_shape:
+                raise ValueError("Initial hidden state shape mismatch. "
+                                 f"Expected {expected_h_0_shape}, got "
+                                 f"{h_0.shape}.")
 
-        self._last_inputs = inputs
-        self._last_hidden_states = (np.zeros(
-            (batch_size, seq_len + 1, self.hidden_dim)))
-        self._last_hidden_states[:, 0, :] = current_hidden_state
+            h_t = h_0
+
+        self._last_x = x
+        self._last_h_seq = (np.zeros((batch_size, seq_len + 1, self.D_h)))
+        self._last_h_seq[:, 0, :] = h_t
 
         for t in range(seq_len):
-            current_input = inputs[:, t, :]
-            current_hidden_state = (self.forward_step(current_input,
-                                                      current_hidden_state))
-            self._last_hidden_states[:, t + 1, :] = current_hidden_state
+            x_t = x[:, t, :]
+            h_t = self.forward_step(x_t, h_t)
+            self._last_h_seq[:, t + 1, :] = h_t
 
-        return current_hidden_state
+        logger.debug("%s forward pass: x_shape=%s, final_h_shape=%s.",
+                     self.name, x.shape, h_t.shape)
 
-    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
-        if self._last_inputs is None or self._last_hidden_states is None:
-            raise RuntimeError(
-                "Forward pass must be called before backward pass.")
+        return h_t
 
-        if output_gradients.ndim != 2:
+    def backward(self, dL_dy: np.ndarray) -> np.ndarray:
+        if self._last_x is None or self._last_h_seq is None:
+            raise RuntimeError("Must call forward() before backward().")
+
+        if dL_dy.ndim != 2:
             raise ValueError(
-                "Output gradients ndim mismatch. Expected 2D array"
-                f", got {output_gradients.shape} instead.")
+                "Output gradient shape mismatch. Expected 2D NumPy array, got "
+                f"{dL_dy.ndim}D array with shape {dL_dy.shape}.")
 
-        batch_size, seq_len, _ = self._last_inputs.shape
-        expected_gradient_shape = (batch_size, self.hidden_dim)
-        if output_gradients.shape != expected_gradient_shape:
-            raise ValueError("Final hidden state gradients shape mismatch. "
-                             f"Expected {expected_gradient_shape}, got "
-                             f"{output_gradients.shape}.")
+        batch_size, seq_len, _ = self._last_x.shape
 
-        self.gradients_input_hidden.fill(0.0)
-        self.gradients_hidden_hidden.fill(0.0)
-        self.gradients_bias.fill(0.0)
+        expected_dL_dy_shape = (batch_size, self.D_h)
+        if dL_dy.shape != expected_dL_dy_shape:
+            raise ValueError("Output gradient shape mismatch. Expected "
+                             f"{expected_dL_dy_shape}, got {dL_dy.shape}.")
 
-        input_sequence_gradients = np.zeros_like(self._last_inputs)
-        current_gradients = output_gradients.copy()
+        self._dL_dW_xh.fill(0.0)
+        self._dL_dW_hh.fill(0.0)
+        self._dL_db_h.fill(0.0)
+
+        dL_dx_seq = np.zeros_like(self._last_x)
+
+        dL_dh_t = dL_dy.copy()
 
         for t in reversed(range(seq_len)):
-            current_hidden_states = self._last_hidden_states[:, t + 1, :]
-            previous_hidden_states = self._last_hidden_states[:, t, :]
-            current_inputs = self._last_inputs[:, t, :]
+            h_t = self._last_h_seq[:, t + 1, :]
+            h_prev_t = self._last_h_seq[:, t, :]
+            x_t = self._last_x[:, t, :]
 
-            tanh_derivative = 1 - current_hidden_states**2
+            dtanh_da_h_t = 1 - h_t**2
 
-            gradient_pre_tanh = current_gradients * tanh_derivative
+            dL_da_h_t = dL_dh_t * dtanh_da_h_t
 
-            self.gradients_input_hidden += current_inputs.T @ gradient_pre_tanh
-            self.gradients_hidden_hidden += (
-                previous_hidden_states.T @ gradient_pre_tanh)
-            self.gradients_bias += gradient_pre_tanh.sum(axis=0, keepdims=True)
+            self._dL_dW_xh += x_t.T @ dL_da_h_t
+            self._dL_dW_hh += h_prev_t.T @ dL_da_h_t
+            self._dL_db_h += dL_da_h_t.sum(axis=0, keepdims=True)
 
-            input_sequence_gradients[:, t, :] = (
-                tanh_derivative @ self._weights_input_hidden.T)
-            current_gradients = tanh_derivative @ self._weights_hidden_hidden.T
+            dL_dx_seq[:, t, :] = dL_da_h_t @ self._W_xh.T
 
-        return input_sequence_gradients
+            dL_dh_t = dtanh_da_h_t @ self._W_hh.T
+
+        logger.debug("%s backward pass: dL_dy_shape=%s, dL_dX_seq_shape=%s.",
+                     self.name, dL_dy.shape, dL_dx_seq.shape)
+
+        return dL_dx_seq
 
 
 class Dense(Layer):
 
-    def __init__(self, input_dim: int, output_dim: int) -> None:
-        if input_dim <= 0:
+    def __init__(self,
+                 D_in: int,
+                 D_out: int,
+                 name: Optional[str] = None) -> None:
+        super().__init__(name)
+
+        if D_in <= 0:
             raise ValueError(
-                f"Input dimension must be positive, got {input_dim}.")
+                f"Input dimension (D_in) must be positive, got {D_in}.")
 
-        if output_dim <= 0:
+        if D_out <= 0:
             raise ValueError(
-                f"Output dimension must be positive, got {output_dim}.")
+                f"Output dimension (D_out) must be positive, got {D_out}.")
 
-        self.input_dim = input_dim
-        self.output_dim = output_dim
+        self.D_in = D_in
+        self.D_out = D_out
 
-        self._weights = np.random.randn(input_dim, output_dim) * 0.01
-        self._bias = np.zeros((1, output_dim))
+        self._W = np.random.randn(D_in, D_out) * 0.01
+        self._b = np.zeros((1, D_out))
 
-        self.gradients: Optional[np.ndarray] = None
-        self.gradients_bias: Optional[np.ndarray] = None
+        self._dL_dW = np.zeros_like(self._W)
+        self._dL_db = np.zeros_like(self._b)
 
-        self._last_inputs: Optional[np.ndarray] = None
-        self._last_outputs: Optional[np.ndarray] = None
+        self._last_p: Optional[np.ndarray] = None
 
-    def forward(self, inputs: np.ndarray, **kwargs) -> np.ndarray:
-        if inputs.ndim != 2:
-            raise ValueError("Inputs ndim mismatch. Expected 2D array, got "
-                             f"{inputs.shape} instead.")
+        logger.info("%s initialized with D_in=%d, D_out=%d.", self.name,
+                    self.D_in, self.D_out)
 
-        if inputs.shape[-1] != self.input_dim:
-            raise ValueError("Input data shape mismatch. Expected shape[-1] "
-                             f"to be {self.input_dim}, got {inputs.shape}.")
+    @property
+    def params(self) -> Dict[str, np.ndarray]:
+        return {"W": self._W, "b": self._b}
 
-        self._last_inputs = inputs
+    @property
+    def grads(self) -> Dict[str, np.ndarray]:
+        return {"W": self._dL_dW, "b": self._dL_db}
 
-        linear_output = inputs @ self._weights + self._bias
+    def forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        if x.ndim != 2:
+            raise ValueError("Input shape mismatch. Expected 2D NumPy array, "
+                             f"got {x.ndim}D array with shape {x.shape}.")
 
-        stabilized_linear_output = linear_output - np.max(
-            linear_output, axis=1, keepdims=True)
+        if x.shape[-1] != self.D_in:
+            raise ValueError(
+                "Input feature dimension mismatch. Expected shape[-1] to be "
+                f"{self.D_in}, got {x.shape[-1]} from shape {x.shape}.")
 
-        exp_outputs = np.exp(stabilized_linear_output)
+        self._last_x = x
 
-        softmax_output = exp_outputs / np.sum(
-            exp_outputs, axis=1, keepdims=True)
+        z = x @ self._W + self._b
+        p = self._softmax(z)
 
-        self._last_outputs = softmax_output
+        self._last_p = p
 
-        return softmax_output
+        logger.debug("%s forward pass: input_shape=%s, output_shape=%s.",
+                     self.name, x.shape, p.shape)
 
-    def backward(self, output_gradients: np.ndarray) -> np.ndarray:
-        if self._last_inputs is None:
-            raise RuntimeError(
-                "Forward pass must be called before backward pass.")
+        return p
 
-        if self._last_outputs is None:
-            raise RuntimeError(
-                "Forward pass must be called before backward pass.")
+    def backward(self, dL_dy: np.ndarray) -> np.ndarray:
+        if self._last_x is None or self._last_p is None:
+            raise RuntimeError("Must call forward() before backward().")
 
-        if output_gradients.ndim != 2:
-            raise ValueError("Output gradients ndim mismatch. Expected 2D "
-                             f"array, got {output_gradients.shape} instead.")
+        if dL_dy.ndim != 2:
+            raise ValueError(
+                "Output gradients shape mismatch. Expected 2D NumPy array, "
+                f"got {dL_dy.ndim}D array with shape {dL_dy.shape}.")
 
-        if output_gradients.shape != self._last_outputs.shape:
+        if dL_dy.shape != self._last_p.shape:
             raise ValueError("Output gradients shape mismatch. Expected "
-                             f"{self._last_outputs.shape}, got "
-                             f"{output_gradients.shape}.")
+                             f"{self._last_p.shape}, got {dL_dy.shape}.")
 
-        output_gradients_times_softmax = output_gradients * self._last_outputs
+        s = np.sum(dL_dy * self._last_p, axis=1, keepdims=True)
+        dL_dz = self._last_p * (dL_dy - s)
 
-        sum_output_gradient_times_softmax = np.sum(
-            output_gradients_times_softmax, axis=1, keepdims=True)
+        self._dL_dw = self._last_x.T @ dL_dz
+        self._dL_db = np.sum(dL_dz)
 
-        linear_output_gradient = (
-            self._last_outputs *
-            (output_gradients - sum_output_gradient_times_softmax))
+        dL_dx = dL_dz @ self._W.T
 
-        self.gradients = self._last_inputs.T @ linear_output_gradient
-        self.gradients_bias = np.sum(linear_output_gradient,
-                                     axis=0,
-                                     keepdims=True)
+        logger.debug("%s backward pass: dL_dy_shape=%s, dL_dx_shape=%s.",
+                     self.name, dL_dy.shape, dL_dx.shape)
 
-        input_gradients = linear_output_gradient @ self._weights.T
+        return dL_dx
 
-        return input_gradients
+    def _softmax(self, z: np.ndarray) -> np.ndarray:
+        z_stabilized = z - np.max(z, axis=1, keepdims=True)
+        exp_z = np.exp(z_stabilized)
+        return exp_z / np.sum(exp_z, axis=1, keepdims=True)
