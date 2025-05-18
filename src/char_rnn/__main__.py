@@ -5,13 +5,12 @@
 import logging
 from typing import List
 
-import numpy as np
-
 from char_rnn.preprocessing import TextVectorizer
 from char_rnn.layers import Dense, Embedding, Recurrent
+from char_rnn.loss import SparseCategoricalCrossEntropy
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 logger = logging.getLogger(__name__)
@@ -44,14 +43,19 @@ def main():
         embedding_layer = Embedding(V, D_e)
         recurrent_layer = Recurrent(D_e, D_h)
         dense_layer = Dense(D_h, V)
+        loss = SparseCategoricalCrossEntropy()
 
-        y_emb = embedding_layer.forward(x_indices)
+        y_emb = embedding_layer.forward(x_indices[:, :-1])
 
         h_t_final = recurrent_layer.forward(y_emb)
 
         p = dense_layer.forward(h_t_final)
 
-        dL_dp = np.random.randn(*p.shape) * 0.1
+        mean_loss = loss.forward(p, x_indices[:, -1])
+
+        logger.info("Mean loss after 1 pass: %.4f.", mean_loss)
+
+        dL_dp = loss.backward(p, x_indices[:, -1])
 
         dL_dh_t_final = dense_layer.backward(dL_dp)
 
@@ -66,7 +70,7 @@ def main():
         logger.error("Runtime error during network operation: %s.",
                      e,
                      exc_info=True)
-    except Exception as e: # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("An unexpected error occured: %s.", e, exc_info=True)
 
 
