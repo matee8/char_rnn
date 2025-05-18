@@ -61,19 +61,19 @@ class CharRNN:
                 f"{self.name} has not been compiled yet. Call compile("
                 "optimizer, loss_fn) before training or evaluation.")
 
-        p_pred = self._forward_pass(x)
+        y_pred = self._forward_pass(x)
 
-        loss_value = self._loss_fn.forward(p_pred, y)
+        loss_value = self._loss_fn.forward(y_pred, y)
 
-        dL_dp_pred = self._loss_fn.backward(p_pred, y)
+        dL_dy_pred = self._loss_fn.backward(y_pred, y)
 
-        self._backward_pass(dL_dp_pred)
+        self._backward_pass(dL_dy_pred)
 
         self._optimizer.step(self._trainable_layers)
 
         return loss_value
 
-    def predict_next_char_probs(
+    def predict_next_char_probas(
             self,
             x: np.ndarray,
             h_0: Optional[np.ndarray] = None) -> np.ndarray:
@@ -85,7 +85,7 @@ class CharRNN:
 
         return self._forward_pass(x, h_0)
 
-    def predict_next_char_index(
+    def predict_next_char(
             self,
             x: np.ndarray,
             h_0: Optional[np.ndarray] = None,
@@ -93,34 +93,34 @@ class CharRNN:
         if temperature <= 0.0:
             raise ValueError("Temperature must be positive.")
 
-        p_pred = self.predict_next_char_probs(x, h_0)
+        y_proba = self.predict_next_char_probas(x, h_0)
 
         if self._h_t_final_for_generation is None:
             raise RuntimeError(
                 "Last hidden state is None after forward pass unexpectedly.")
 
         if temperature == 1.0:
-            next_char_indices = np.argmax(p_pred, axis=1)
+            char_id = np.argmax(y_proba, axis=1)
         else:
-            scaled_logits = np.log(p_pred + 1e+9) / temperature
+            scaled_logits = np.log(y_proba + 1e+9) / temperature
 
             exp_logits = np.exp(scaled_logits -
                                 np.max(scaled_logits, axis=1, keepdims=True))
 
-            probs_temp_scaled = exp_logits / np.sum(
+            probas_temp_scaled = exp_logits / np.sum(
                 exp_logits, axis=1, keepdims=True)
 
-            next_char_indices = np.array([
-                np.random.choice(self.V, p=probs_temp_scaled[i])
-                for i in range(p_pred.shape[0])
+            char_id = np.array([
+                np.random.choice(self.V, p=probas_temp_scaled[i])
+                for i in range(y_proba.shape[0])
             ])
 
-        return next_char_indices, self._h_t_final_for_generation
+        return char_id, self._h_t_final_for_generation
 
     def generate_sequence(self,
                           vectorizer: TextVectorizer,
-                          start_string: str,
-                          num_chars_to_generate: int,
+                          text: str,
+                          n_chars: int,
                           temperature: float = 1.0) -> str:
         if self.V != vectorizer.vocabulary_size:
             logger.warning(
@@ -130,19 +130,19 @@ class CharRNN:
 
         logger.debug(
             "%s generating sequence: start_string='%s', num_chars=%d, "
-            "temp=%.2f.", self.name, start_string, num_chars_to_generate,
+            "temp=%.2f.", self.name, text, n_chars,
             temperature)
 
-        generated_text = start_string
+        generated_text = text
 
-        x = vectorizer.encode([start_string])[0]
+        x = vectorizer.encode([text])[0]
 
         h_t = np.zeros((1, self.D_h))
 
-        for _ in range(num_chars_to_generate):
+        for _ in range(n_chars):
             x = x.reshape(1, -1)
 
-            next_char_idx_array, h_t = self.predict_next_char_index(
+            next_char_idx_array, h_t = self.predict_next_char(
                 x, h_t, temperature)
 
             next_char_idx = next_char_idx_array[0]
@@ -166,8 +166,8 @@ class CharRNN:
 
         return self._dense_layer.forward(h_t_final)
 
-    def _backward_pass(self, dL_dp_pred: np.ndarray) -> None:
-        dL_dh_t_final = self._dense_layer.backward(dL_dp_pred)
+    def _backward_pass(self, dL_dy_pred: np.ndarray) -> None:
+        dL_dh_t_final = self._dense_layer.backward(dL_dy_pred)
 
         if dL_dh_t_final is None:
             raise RuntimeError(

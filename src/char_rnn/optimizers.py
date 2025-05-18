@@ -93,9 +93,8 @@ class Adam(Optimizer):
                 m_hat = self.m[layer_id][param_name] / (1 - self.beta1**self.t)
                 v_hat = self.v[layer_id][param_name] / (1 - self.beta2**self.t)
 
-                update_value = self.learning_rate * m_hat / (np.sqrt(v_hat) +
+                param_value -= self.learning_rate * m_hat / (np.sqrt(v_hat) +
                                                              self.epsilon)
-                param_value -= update_value
 
                 logger.debug("%s updated param '%s' in layer '%s'.", self.name,
                              param_name, layer.name)
