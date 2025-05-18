@@ -3,14 +3,11 @@
 # pylint: disable=invalid-name
 
 import logging
-from typing import List
 
-import numpy as np
-
-from char_rnn.preprocessing import TextVectorizer
-from char_rnn.layers import Dense, Embedding, Layer, Recurrent
 from char_rnn.loss import SparseCategoricalCrossEntropy
+from char_rnn.model import CharRNN
 from char_rnn.optimizers import Adam
+from char_rnn.preprocessing import TextVectorizer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,75 +19,64 @@ logger = logging.getLogger(__name__)
 def main():
     try:
         vectorizer = TextVectorizer()
+        corpus = "abcdefghijklmnopqrstuvwxyz "
+        vectorizer.fit(corpus)
+        V = vectorizer.vocabulary_size
 
-        alphabet: str = "abcdefghijklmnopqrstuvwxyz "
-        vectorizer.fit(alphabet)
+        texts = ["hello", "world"]
+        x_full = vectorizer.encode(texts)
 
-        texts: List[str] = ["hello", "world"]
-
-        x_indices_full = vectorizer.encode(texts)
-
-        x_indices_input = x_indices_full[:, :-1]
-        y_true_indices = x_indices_full[:, -1]
+        x = x_full[:, :-1]
+        y = x_full[:, -1]
     except ValueError as e:
-        logger.error("Error during text vectorization: %s.", e, exc_info=True)
+        logger.error("Error during data preprocessing: %s", e, exc_info=True)
         return
     except RuntimeError as e:
-        logger.error("Runtime error during text vectorization: %s.",
+        logger.error("Runtime error during data preprocessing: %s",
                      e,
                      exc_info=True)
         return
 
     D_e = 16
     D_h = 128
-    num_epochs = 1000
-    V = vectorizer.vocabulary_size
+    learning_rate = 0.001
 
     try:
-        embedding_layer = Embedding(V, D_e)
-        recurrent_layer = Recurrent(D_e, D_h)
-        dense_layer = Dense(D_h, V)
-        loss_fn = SparseCategoricalCrossEntropy()
-        optimizer = Adam()
+        model = CharRNN(V, D_e, D_h)
 
-        trainable_layers: List[Layer] = [
-            embedding_layer, recurrent_layer, dense_layer
-        ]
+        optimizer = Adam(learning_rate)
+        loss_fn = SparseCategoricalCrossEntropy()
+
+        model.compile(optimizer, loss_fn)
+
+        num_epochs = 1000
 
         for epoch in range(num_epochs):
-            y_emb = embedding_layer.forward(x_indices_input)
-            h_t_final = recurrent_layer.forward(y_emb)
-            p = dense_layer.forward(h_t_final)
+            loss = model.train_step(x, y)
 
-            mean_loss = loss_fn.forward(p, y_true_indices)
-            logger.info("Epoch %d - Loss: %.4f.", epoch + 1, mean_loss)
-
-            dL_dp = loss_fn.backward(p, y_true_indices)
-
-            dL_dh_t_final = dense_layer.backward(dL_dp)
-            dL_dy_emb = recurrent_layer.backward(dL_dh_t_final)
-            embedding_layer.backward(dL_dy_emb)
-
-            optimizer.step(trainable_layers)
+            if (epoch + 1) % 20 == 0:
+                logger.info("Epoch %d/%d - Loss: %.4f.", epoch + 1, num_epochs,
+                            loss)
 
         logger.info("Training loop finished.")
 
-        text = ["hell", "worl"]
-        x = vectorizer.encode(text)
-        y_emb = embedding_layer.forward(x)
-        h_t_final = recurrent_layer.forward(y_emb)
-        p = dense_layer.forward(h_t_final)
-        chosen_char_id = np.argmax(p, axis=1, keepdims=True)
-        char = vectorizer.decode(np.array(chosen_char_id).reshape(-1, 1))
-        print(char)
+        start_seed = "worl"
+        num_to_generate = 20
+
+        generated_text = model.generate_sequence(vectorizer, start_seed,
+                                                 num_to_generate, 1.0)
+        logger.info("Generated text (%d chars, temp=1.0): '%s'",
+                    num_to_generate, generated_text)
     except ValueError as e:
-        logger.error("Error during network operation: %s.", e, exc_info=True)
+        logger.error("ValueError during model operation: %s", e, exc_info=True)
     except RuntimeError as e:
-        logger.error("Runtime error during network operation: %s.",
+        logger.error("RuntimeError during model operation: %s",
                      e,
                      exc_info=True)
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error("An unexpected error occured: %s.", e, exc_info=True)
+    except TypeError as e:
+        logger.error("TypeError during model operation: %s", e, exc_info=True)
+    except Exception as e:  # pylint: disable=broad-except
+        logger.error("An unexpected error occurred: %s", e, exc_info=True)
 
 
 if __name__ == "__main__":
