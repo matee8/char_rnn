@@ -49,7 +49,7 @@ class SparseCategoricalCrossEntropy(Loss):
 
         batch_size, V = y_pred.shape
 
-        if np.any(y_true < 0) or np.any(y_true > V):
+        if np.any(y_true < 0) or np.any(y_true >= V):
             raise ValueError(
                 "True outputs contains values out of bounds for number of "
                 f"classes {V}.")
