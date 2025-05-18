@@ -8,6 +8,7 @@ from char_rnn.loss import SparseCategoricalCrossEntropy
 from char_rnn.model import CharRNN
 from char_rnn.optimizers import Adam
 from char_rnn.preprocessing import TextVectorizer
+from char_rnn import util
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,15 +20,18 @@ logger = logging.getLogger(__name__)
 def main():
     try:
         vectorizer = TextVectorizer()
-        corpus = "abcdefghijklmnopqrstuvwxyz "
+        corpus = "hello world"
         vectorizer.fit(corpus)
         V = vectorizer.vocabulary_size
 
-        texts = ["hello", "world"]
-        x_full = vectorizer.encode(texts)
+        sequence = vectorizer.encode([corpus]).ravel()
 
-        x = x_full[:, :-1]
-        y = x_full[:, -1]
+        X_train, y_train = util.create_sliding_windows(sequence,
+                                                       window_size=5,
+                                                       shuffle=False)
+        print(X_train.shape)
+        print(y_train.shape)
+
     except ValueError as e:
         logger.error("Error during data preprocessing: %s", e, exc_info=True)
         return
@@ -52,7 +56,7 @@ def main():
         num_epochs = 1000
 
         for epoch in range(num_epochs):
-            loss = model.train_step(x, y)
+            loss = model.train_step(X_train, y_train)
 
             if (epoch + 1) % 20 == 0:
                 logger.info("Epoch %d/%d - Loss: %.4f.", epoch + 1, num_epochs,
@@ -60,8 +64,8 @@ def main():
 
         logger.info("Training loop finished.")
 
-        start_seed = "worl"
-        num_to_generate = 20
+        start_seed = "hel"
+        num_to_generate = 2
 
         generated_text = model.generate_sequence(vectorizer, start_seed,
                                                  num_to_generate, 1.0)

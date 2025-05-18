@@ -130,8 +130,7 @@ class CharRNN:
 
         logger.debug(
             "%s generating sequence: start_string='%s', num_chars=%d, "
-            "temp=%.2f.", self.name, text, n_chars,
-            temperature)
+            "temp=%.2f.", self.name, text, n_chars, temperature)
 
         generated_text = text
 
