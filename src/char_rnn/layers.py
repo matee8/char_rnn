@@ -254,11 +254,11 @@ class Recurrent(Layer):
 
             self._dL_dW_xh += x_t.T @ dL_da_h_t
             self._dL_dW_hh += h_prev_t.T @ dL_da_h_t
-            self._dL_db_h += dL_da_h_t.sum(axis=0, keepdims=True)
+            self._dL_db_h += np.sum(dL_da_h_t, axis=0, keepdims=True)
 
             dL_dx_seq[:, t, :] = dL_da_h_t @ self._W_xh.T
 
-            dL_dh_t = dtanh_da_h_t @ self._W_hh.T
+            dL_dh_t = dL_da_h_t @ self._W_hh.T
 
         logger.debug("%s backward pass: dL_dy_shape=%s, dL_dX_seq_shape=%s.",
                      self.name, dL_dy.shape, dL_dx_seq.shape)
