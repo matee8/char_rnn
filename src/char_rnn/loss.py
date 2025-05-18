@@ -61,13 +61,13 @@ class SparseCategoricalCrossEntropy(Loss):
 
         log_likelihoods = -np.log(correct_class_probabilites)
 
-        mean_loss = np.sum(log_likelihoods) / batch_size
+        mean_loss = np.mean(log_likelihoods)
 
         logger.debug(
             "%s forward pass: y_pred_shape=%s, y_true_shape=%s, "
             "loss=%.4f", self.name, y_pred.shape, y_true.shape, mean_loss)
 
-        return float(mean_loss)
+        return mean_loss
 
     def backward(self, y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
         if y_pred.ndim != 2:

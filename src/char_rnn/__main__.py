@@ -5,9 +5,12 @@
 import logging
 from typing import List
 
+import numpy as np
+
 from char_rnn.preprocessing import TextVectorizer
-from char_rnn.layers import Dense, Embedding, Recurrent
+from char_rnn.layers import Dense, Embedding, Layer, Recurrent
 from char_rnn.loss import SparseCategoricalCrossEntropy
+from char_rnn.optimizers import Adam
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +28,10 @@ def main():
 
         texts: List[str] = ["hello", "world"]
 
-        x_indices = vectorizer.encode(texts)
+        x_indices_full = vectorizer.encode(texts)
+
+        x_indices_input = x_indices_full[:, :-1]
+        y_true_indices = x_indices_full[:, -1]
     except ValueError as e:
         logger.error("Error during text vectorization: %s.", e, exc_info=True)
         return
@@ -37,33 +43,46 @@ def main():
 
     D_e = 16
     D_h = 128
+    num_epochs = 1000
     V = vectorizer.vocabulary_size
 
     try:
         embedding_layer = Embedding(V, D_e)
         recurrent_layer = Recurrent(D_e, D_h)
         dense_layer = Dense(D_h, V)
-        loss = SparseCategoricalCrossEntropy()
+        loss_fn = SparseCategoricalCrossEntropy()
+        optimizer = Adam()
 
-        y_emb = embedding_layer.forward(x_indices[:, :-1])
+        trainable_layers: List[Layer] = [
+            embedding_layer, recurrent_layer, dense_layer
+        ]
 
+        for epoch in range(num_epochs):
+            y_emb = embedding_layer.forward(x_indices_input)
+            h_t_final = recurrent_layer.forward(y_emb)
+            p = dense_layer.forward(h_t_final)
+
+            mean_loss = loss_fn.forward(p, y_true_indices)
+            logger.info("Epoch %d - Loss: %.4f.", epoch + 1, mean_loss)
+
+            dL_dp = loss_fn.backward(p, y_true_indices)
+
+            dL_dh_t_final = dense_layer.backward(dL_dp)
+            dL_dy_emb = recurrent_layer.backward(dL_dh_t_final)
+            embedding_layer.backward(dL_dy_emb)
+
+            optimizer.step(trainable_layers)
+
+        logger.info("Training loop finished.")
+
+        text = ["hell", "worl"]
+        x = vectorizer.encode(text)
+        y_emb = embedding_layer.forward(x)
         h_t_final = recurrent_layer.forward(y_emb)
-
         p = dense_layer.forward(h_t_final)
-
-        mean_loss = loss.forward(p, x_indices[:, -1])
-
-        logger.info("Mean loss after 1 pass: %.4f.", mean_loss)
-
-        dL_dp = loss.backward(p, x_indices[:, -1])
-
-        dL_dh_t_final = dense_layer.backward(dL_dp)
-
-        dL_dy_emb = recurrent_layer.backward(dL_dh_t_final)
-
-        embedding_layer.backward(dL_dy_emb)
-
-        logger.info("Forward and backward pass completed.")
+        chosen_char_id = np.argmax(p, axis=1, keepdims=True)
+        char = vectorizer.decode(np.array(chosen_char_id).reshape(-1, 1))
+        print(char)
     except ValueError as e:
         logger.error("Error during network operation: %s.", e, exc_info=True)
     except RuntimeError as e:
