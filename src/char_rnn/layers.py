@@ -342,8 +342,8 @@ class Dense(Layer):
         s = np.sum(dL_dy * self._last_p, axis=1, keepdims=True)
         dL_dz = self._last_p * (dL_dy - s)
 
-        self._dL_dw = self._last_x.T @ dL_dz
-        self._dL_db = np.sum(dL_dz)
+        self._dL_dW = self._last_x.T @ dL_dz
+        self._dL_db = np.sum(dL_dz, axis=0, keepdims=True)
 
         dL_dx = dL_dz @ self._W.T
 
