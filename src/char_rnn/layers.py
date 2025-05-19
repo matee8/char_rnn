@@ -46,8 +46,8 @@ class Embedding(Layer):
 
         self.V = V
         self.D_e = D_e
-        self._W_e = np.random.randn(V, D_e) * 0.01
-        self._dL_dW_e = np.zeros_like(self._W_e)
+        self._W_e = np.random.randn(V, D_e).astype(np.float32) * 0.01
+        self._dL_dW_e = np.zeros_like(self._W_e, dtype=np.float32)
 
         logger.info("%s initialized with V=%d, D_e=%d.", self.name, self.V,
                     self.D_e)
@@ -187,14 +187,14 @@ class Recurrent(Layer):
             raise ValueError("Input shape mismatch. Expected 3D NumPy array, "
                              f"got {x.ndim}D array with shape {x.shape}.")
 
-        batch_size, seq_len, input_dim = x.shape
+        N, T_seq, input_dim = x.shape
 
         if input_dim != self.D_in:
             raise ValueError(
                 "Input feature dimension mismatch. Expected shape[-1] to be "
                 f"{self.D_in}, got {x.shape[-1]} from shape {x.shape}.")
 
-        expected_h_0_shape = (batch_size, self.D_h)
+        expected_h_0_shape = (N, self.D_h)
         if h_0 is None:
             h_t = np.zeros(expected_h_0_shape)
         else:
@@ -206,10 +206,10 @@ class Recurrent(Layer):
             h_t = h_0
 
         self._last_x = x
-        self._last_h_seq = (np.zeros((batch_size, seq_len + 1, self.D_h)))
+        self._last_h_seq = np.zeros((1, T_seq + 1, self.D_h), dtype=x.dtype)
         self._last_h_seq[:, 0, :] = h_t
 
-        for t in range(seq_len):
+        for t in range(T_seq):
             x_t = x[:, t, :]
             h_t = self.forward_step(x_t, h_t)
             self._last_h_seq[:, t + 1, :] = h_t
@@ -228,9 +228,9 @@ class Recurrent(Layer):
                 "Output gradient shape mismatch. Expected 2D NumPy array, got "
                 f"{dL_dy.ndim}D array with shape {dL_dy.shape}.")
 
-        batch_size, seq_len, _ = self._last_x.shape
+        N, T_seq, _ = self._last_x.shape
 
-        expected_dL_dy_shape = (batch_size, self.D_h)
+        expected_dL_dy_shape = (N, self.D_h)
         if dL_dy.shape != expected_dL_dy_shape:
             raise ValueError("Output gradient shape mismatch. Expected "
                              f"{expected_dL_dy_shape}, got {dL_dy.shape}.")
@@ -243,7 +243,7 @@ class Recurrent(Layer):
 
         dL_dh_t = dL_dy.copy()
 
-        for t in reversed(range(seq_len)):
+        for t in reversed(range(T_seq)):
             h_t = self._last_h_seq[:, t + 1, :]
             h_prev_t = self._last_h_seq[:, t, :]
             x_t = self._last_x[:, t, :]
