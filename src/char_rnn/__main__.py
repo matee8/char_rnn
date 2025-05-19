@@ -20,11 +20,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-D_E = 16
-D_H = 128
-ETA = 0.001
-L_WINDOW = 5
-N_BATCH = 5
+EMBEDDING_DIM = 16
+HIDDEN_DIM = 128
+LEARNING_RATE = 0.001
+WINDOW_SIZE = 5
+BATCH_SIZE = 5
 NUM_EPOCHS = 1000
 SHUFFLE_DATA_EACH_EPOCH = True
 LOG_INTERVAL_EPOCHS = 50
@@ -55,24 +55,24 @@ def main():
         return
 
     try:
-        model = CharRNN(V, D_E, D_H)
+        model = CharRNN(V, EMBEDDING_DIM, HIDDEN_DIM)
 
-        optimizer = Adam(ETA)
+        optimizer = Adam(LEARNING_RATE)
         loss_fn = SparseCategoricalCrossEntropy()
 
         model.compile(optimizer, loss_fn)
 
         logger.info(
             "Starting training with %d epochs, batch_size=%d, "
-            "window_size=%d.", NUM_EPOCHS, N_BATCH, L_WINDOW)
+            "window_size=%d.", NUM_EPOCHS, BATCH_SIZE, WINDOW_SIZE)
 
         for epoch in range(NUM_EPOCHS):
             epoch_losses: List[float] = []
 
             mini_batch_generator = util.create_batch_sequences(
                 x,
-                L_w=L_WINDOW,
-                N=N_BATCH,
+                L_w=WINDOW_SIZE,
+                N=BATCH_SIZE,
                 shuffle=SHUFFLE_DATA_EACH_EPOCH,
                 seed=SEED + epoch if SHUFFLE_DATA_EACH_EPOCH else SEED,
                 drop_last=True)

@@ -46,10 +46,10 @@ def create_batch_sequences(
     if num_total_chars < L_w:
         raise ValueError("Data is too short for the given window size.")
 
-    T_seq = L_w - 1
+    L_seq = L_w - 1
     num_windows = num_total_chars - L_w + 1
 
-    X_all = np.zeros((num_windows, T_seq), dtype=s.dtype)
+    X_all = np.zeros((num_windows, L_seq), dtype=s.dtype)
     y_all = np.zeros(num_windows, dtype=s.dtype)
 
     for i in range(num_windows):
