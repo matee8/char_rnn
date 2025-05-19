@@ -47,7 +47,7 @@ class SparseCategoricalCrossEntropy(Loss):
                 f"Batch size mismatch between predictions ({y_pred.shape[0]}) "
                 f"and true outputs ({y_true.shape[0]}).")
 
-        batch_size, V = y_pred.shape
+        N, V = y_pred.shape
 
         if np.any(y_true < 0) or np.any(y_true >= V):
             raise ValueError(
@@ -56,7 +56,7 @@ class SparseCategoricalCrossEntropy(Loss):
 
         y_pred_clipped = np.clip(y_pred, self.epsilon, 1.0 - self.epsilon)
 
-        correct_class_probabilites = y_pred_clipped[np.arange(batch_size),
+        correct_class_probabilites = y_pred_clipped[np.arange(N),
                                                     y_true]
 
         log_likelihoods = -np.log(correct_class_probabilites)
