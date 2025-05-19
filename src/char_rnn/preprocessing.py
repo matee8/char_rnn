@@ -39,15 +39,15 @@ class TextVectorizer:
         if not texts:
             raise ValueError("Input texts list cannot be empty.")
 
-        batch_size = len(texts)
-        seq_len = len(texts[0])
-        if seq_len == 0:
+        N = len(texts)
+        T_seq = len(texts[0])
+        if T_seq == 0:
             raise ValueError("Texts cannot be empty strings.")
 
-        sequences = np.zeros((batch_size, seq_len), dtype=int)
+        sequences = np.zeros((N, T_seq), dtype=int)
 
         for i, text in enumerate(texts):
-            if len(text) != seq_len:
+            if len(text) != T_seq:
                 raise ValueError("All texts must have the same length.")
 
             for j, char in enumerate(text):
