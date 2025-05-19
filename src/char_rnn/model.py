@@ -102,13 +102,14 @@ class CharRNN:
         if temperature == 1.0:
             char_id = np.argmax(y_proba, axis=1)
         else:
-            scaled_logits = np.log(y_proba + 1e+9) / temperature
+            y_proba_clipped = np.clip(y_proba, 1e-9, 1.0)
 
-            exp_logits = np.exp(scaled_logits -
-                                np.max(scaled_logits, axis=1, keepdims=True))
+            log_probas = np.log(y_proba_clipped)
+            scaled_log_probas = log_probas / temperature
 
-            probas_temp_scaled = exp_logits / np.sum(
-                exp_logits, axis=1, keepdims=True)
+            exp_scaled_log_probas = (np.exp(scaled_log_probas - np.max(scaled_log_probas, axis=1, keepdims=True)))
+
+            probas_temp_scaled = (exp_scaled_log_probas / np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
 
             char_id = np.array([
                 np.random.choice(self.V, p=probas_temp_scaled[i])
