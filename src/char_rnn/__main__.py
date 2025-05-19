@@ -72,8 +72,8 @@ def main():
                 batch_loss = model.train_step(X_batch, y_batch)
                 num_batches_processed += 1
 
-                if (epoch +
-                        1) % log_interval == 0 and num_batches_processed > 0:
+                if ((epoch + 1) % log_interval == 0
+                        and num_batches_processed > 0):
                     logger.info("Epoch %d/%d - Loss: %.4f.", epoch + 1,
                                 num_epochs, batch_loss)
 

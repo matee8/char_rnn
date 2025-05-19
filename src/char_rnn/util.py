@@ -63,10 +63,9 @@ def create_sliding_windows(
         num_windows, X_all.shape, y_all.shape)
 
     if shuffle:
-        if seed is not None:
-            np.random.seed(seed)
+        rng = np.random.default_rng(seed)
 
-        permutation = np.random.permutation(num_windows)
+        permutation = rng.permutation(num_windows)
         X_all = X_all[permutation]
         y_all = y_all[permutation]
 
