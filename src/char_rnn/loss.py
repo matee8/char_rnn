@@ -56,8 +56,7 @@ class SparseCategoricalCrossEntropy(Loss):
 
         y_pred_clipped = np.clip(y_pred, self.epsilon, 1.0 - self.epsilon)
 
-        correct_class_probabilites = y_pred_clipped[np.arange(N),
-                                                    y_true]
+        correct_class_probabilites = y_pred_clipped[np.arange(N), y_true]
 
         log_likelihoods = -np.log(correct_class_probabilites)
 
@@ -67,7 +66,7 @@ class SparseCategoricalCrossEntropy(Loss):
             "%s forward pass: y_pred_shape=%s, y_true_shape=%s, "
             "loss=%.4f", self.name, y_pred.shape, y_true.shape, mean_loss)
 
-        return mean_loss
+        return float(mean_loss)
 
     def backward(self, y_pred: np.ndarray, y_true: np.ndarray) -> np.ndarray:
         if y_pred.ndim != 2:

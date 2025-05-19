@@ -3,12 +3,16 @@
 # pylint: disable=invalid-name
 
 import logging
+import random
+from typing import List
 
+from char_rnn import util
 from char_rnn.loss import SparseCategoricalCrossEntropy
 from char_rnn.model import CharRNN
 from char_rnn.optimizers import Adam
 from char_rnn.preprocessing import TextVectorizer
-from char_rnn import util
+
+import numpy as np
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,13 +20,27 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+D_E = 16
+D_H = 128
+ETA = 0.001
+T_WINDOW = 5
+N_BATCH = 5
+NUM_EPOCHS = 1000
+SHUFFLE_DATA_EACH_EPOCH = True
+LOG_INTERVAL_EPOCHS = 50
+SEED = 42
+
 
 def main():
+    np.random.seed(SEED)
+    random.seed(SEED)
+
     try:
         vectorizer = TextVectorizer()
         corpus = (
             "hello world this is a demonstration of a character rnn with "
-            "mini batch training")
+            "mini batch training this corpus is also very small for good "
+            "results")
         vectorizer.fit(corpus)
         V = vectorizer.vocabulary_size
 
@@ -36,46 +54,41 @@ def main():
                      exc_info=True)
         return
 
-    D_e = 16
-    D_h = 128
-    learning_rate = 0.001
-    window_size = 5
-    batch_size = 16
-    shuffle_data_each_epoch = True
-
     try:
-        model = CharRNN(V, D_e, D_h)
+        model = CharRNN(V, D_E, D_H)
 
-        optimizer = Adam(learning_rate)
+        optimizer = Adam(ETA)
         loss_fn = SparseCategoricalCrossEntropy()
 
         model.compile(optimizer, loss_fn)
 
-        num_epochs = 1000
-        log_interval = 50
-
         logger.info(
             "Starting training with %d epochs, batch_size=%d, "
-            "window_size=%d.", num_epochs, batch_size, window_size)
+            "window_size=%d.", NUM_EPOCHS, N_BATCH, T_WINDOW)
 
-        for epoch in range(num_epochs):
-            num_batches_processed = 0
+        for epoch in range(NUM_EPOCHS):
+            epoch_losses: List[float] = []
 
             mini_batch_generator = util.create_sliding_windows(
                 sequence,
-                window_size=window_size,
-                batch_size=batch_size,
-                shuffle=shuffle_data_each_epoch,
+                window_size=T_WINDOW,
+                batch_size=N_BATCH,
+                shuffle=SHUFFLE_DATA_EACH_EPOCH,
+                seed=SEED + epoch if SHUFFLE_DATA_EACH_EPOCH else SEED,
                 drop_last=True)
 
             for X_batch, y_batch in mini_batch_generator:
                 batch_loss = model.train_step(X_batch, y_batch)
-                num_batches_processed += 1
+                epoch_losses.append(batch_loss)
 
-                if ((epoch + 1) % log_interval == 0
-                        and num_batches_processed > 0):
+            if epoch_losses:
+                avg_epoch_loss = np.mean(epoch_losses)
+                if (epoch + 1) % LOG_INTERVAL_EPOCHS == 0:
                     logger.info("Epoch %d/%d - Loss: %.4f.", epoch + 1,
-                                num_epochs, batch_loss)
+                                NUM_EPOCHS, avg_epoch_loss)
+            else:
+                logger.warning("Epoch %d/%d - No batches were processed.",
+                               epoch + 1, NUM_EPOCHS)
 
         logger.info("Training loop finished.")
 

@@ -206,7 +206,7 @@ class Recurrent(Layer):
             h_t = h_0
 
         self._last_x = x
-        self._last_h_seq = np.zeros((1, T_seq + 1, self.D_h), dtype=x.dtype)
+        self._last_h_seq = np.zeros((N, T_seq + 1, self.D_h), dtype=x.dtype)
         self._last_h_seq[:, 0, :] = h_t
 
         for t in range(T_seq):

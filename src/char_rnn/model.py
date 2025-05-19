@@ -107,9 +107,13 @@ class CharRNN:
             log_probas = np.log(y_proba_clipped)
             scaled_log_probas = log_probas / temperature
 
-            exp_scaled_log_probas = (np.exp(scaled_log_probas - np.max(scaled_log_probas, axis=1, keepdims=True)))
+            exp_scaled_log_probas = (
+                np.exp(scaled_log_probas -
+                       np.max(scaled_log_probas, axis=1, keepdims=True)))
 
-            probas_temp_scaled = (exp_scaled_log_probas / np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
+            probas_temp_scaled = (
+                exp_scaled_log_probas /
+                np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
 
             char_id = np.array([
                 np.random.choice(self.V, p=probas_temp_scaled[i])

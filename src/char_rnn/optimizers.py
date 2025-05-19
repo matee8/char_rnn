@@ -114,6 +114,3 @@ class Adam(Optimizer):
                     logger.debug(
                         "%s initialized Adam moments for param '%s' "
                         "in layer '%s'.", self.name, param_name, layer.name)
-            else:
-                logger.warning("%s tried to initialize moments for layer '%s' "
-                               "but the layer already has moments.")
