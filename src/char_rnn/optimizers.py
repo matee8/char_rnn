@@ -33,7 +33,7 @@ class Adam(Optimizer):
                  learning_rate: float = 0.001,
                  beta1: float = 0.9,
                  beta2: float = 0.999,
-                 epsilon: float = 1e-12,
+                 epsilon: float = 1e-7,
                  name: Optional[str] = None) -> None:
         super().__init__(learning_rate, name)
 
@@ -114,3 +114,6 @@ class Adam(Optimizer):
                     logger.debug(
                         "%s initialized Adam moments for param '%s' "
                         "in layer '%s'.", self.name, param_name, layer.name)
+            else:
+                logger.warning("%s tried to initialize moments for layer '%s' "
+                               "but the layer already has moments.")
