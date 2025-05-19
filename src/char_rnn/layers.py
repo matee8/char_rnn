@@ -291,7 +291,7 @@ class Dense(Layer):
         self._dL_dW = np.zeros_like(self._W)
         self._dL_db = np.zeros_like(self._b)
 
-        self._last_p: Optional[np.ndarray] = None
+        self._last_y_pred: Optional[np.ndarray] = None
 
         logger.info("%s initialized with D_in=%d, D_out=%d.", self.name,
                     self.D_in, self.D_out)
@@ -319,7 +319,7 @@ class Dense(Layer):
         z = x @ self._W + self._b
         p = self._softmax(z)
 
-        self._last_p = p
+        self._last_y_pred = p
 
         logger.debug("%s forward pass: input_shape=%s, output_shape=%s.",
                      self.name, x.shape, p.shape)
@@ -327,7 +327,7 @@ class Dense(Layer):
         return p
 
     def backward(self, dL_dy: np.ndarray) -> np.ndarray:
-        if self._last_x is None or self._last_p is None:
+        if self._last_x is None or self._last_y_pred is None:
             raise RuntimeError("Must call forward() before backward().")
 
         if dL_dy.ndim != 2:
@@ -335,12 +335,12 @@ class Dense(Layer):
                 "Output gradients shape mismatch. Expected 2D NumPy array, "
                 f"got {dL_dy.ndim}D array with shape {dL_dy.shape}.")
 
-        if dL_dy.shape != self._last_p.shape:
+        if dL_dy.shape != self._last_y_pred.shape:
             raise ValueError("Output gradients shape mismatch. Expected "
-                             f"{self._last_p.shape}, got {dL_dy.shape}.")
+                             f"{self._last_y_pred.shape}, got {dL_dy.shape}.")
 
-        s = np.sum(dL_dy * self._last_p, axis=1, keepdims=True)
-        dL_dz = self._last_p * (dL_dy - s)
+        s = np.sum(dL_dy * self._last_y_pred, axis=1, keepdims=True)
+        dL_dz = self._last_y_pred * (dL_dy - s)
 
         self._dL_dW = self._last_x.T @ dL_dz
         self._dL_db = np.sum(dL_dz, axis=0, keepdims=True)

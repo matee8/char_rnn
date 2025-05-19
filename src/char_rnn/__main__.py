@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 D_E = 16
 D_H = 128
 ETA = 0.001
-T_WINDOW = 5
+L_WINDOW = 5
 N_BATCH = 5
 NUM_EPOCHS = 1000
 SHUFFLE_DATA_EACH_EPOCH = True
@@ -44,7 +44,7 @@ def main():
         vectorizer.fit(corpus)
         V = vectorizer.vocabulary_size
 
-        sequence = vectorizer.encode([corpus]).ravel()
+        x = vectorizer.encode([corpus]).ravel()
     except ValueError as e:
         logger.error("Error during data preprocessing: %s", e, exc_info=True)
         return
@@ -64,15 +64,15 @@ def main():
 
         logger.info(
             "Starting training with %d epochs, batch_size=%d, "
-            "window_size=%d.", NUM_EPOCHS, N_BATCH, T_WINDOW)
+            "window_size=%d.", NUM_EPOCHS, N_BATCH, L_WINDOW)
 
         for epoch in range(NUM_EPOCHS):
             epoch_losses: List[float] = []
 
-            mini_batch_generator = util.create_sliding_windows(
-                sequence,
-                window_size=T_WINDOW,
-                batch_size=N_BATCH,
+            mini_batch_generator = util.create_batch_sequences(
+                x,
+                L_w=L_WINDOW,
+                N=N_BATCH,
                 shuffle=SHUFFLE_DATA_EACH_EPOCH,
                 seed=SEED + epoch if SHUFFLE_DATA_EACH_EPOCH else SEED,
                 drop_last=True)
@@ -92,11 +92,11 @@ def main():
 
         logger.info("Training loop finished.")
 
-        start_seed_text = "hell"
+        prompt = "hell"
         num_to_generate = 50
 
         generated_text = model.generate_sequence(vectorizer=vectorizer,
-                                                 text=start_seed_text,
+                                                 prompt=prompt,
                                                  n_chars=num_to_generate,
                                                  temperature=1.0)
         logger.info("Generated text (%d chars, temp=1.0): '%s'",

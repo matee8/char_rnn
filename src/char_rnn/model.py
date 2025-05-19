@@ -43,7 +43,7 @@ class CharRNN:
         self._loss_fn: Optional[Loss] = None
         self._optimizer: Optional[Optimizer] = None
 
-        self._h_t_final_for_generation: Optional[np.ndarray] = None
+        self._h_t_final: Optional[np.ndarray] = None
 
         logger.info("%s initialized with V=%d, D_e=%d, D_h=%d", self.name,
                     self.V, self.D_e, self.D_h)
@@ -63,7 +63,7 @@ class CharRNN:
 
         y_pred = self._forward_pass(x)
 
-        loss_value = self._loss_fn.forward(y_pred, y)
+        loss = self._loss_fn.forward(y_pred, y)
 
         dL_dy_pred = self._loss_fn.backward(y_pred, y)
 
@@ -71,7 +71,7 @@ class CharRNN:
 
         self._optimizer.step(self._trainable_layers)
 
-        return loss_value
+        return loss
 
     def predict_next_char_probas(
             self,
@@ -85,42 +85,41 @@ class CharRNN:
 
         return self._forward_pass(x, h_0)
 
-    def predict_next_char(
-            self,
-            x: np.ndarray,
-            h_0: Optional[np.ndarray] = None,
-            temperature: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
-        if temperature <= 0.0:
+    def predict_next_char(self,
+                          x: np.ndarray,
+                          h_0: Optional[np.ndarray] = None,
+                          temp: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
+        if temp <= 0.0:
             raise ValueError("Temperature must be positive.")
 
         y_proba = self.predict_next_char_probas(x, h_0)
 
-        if self._h_t_final_for_generation is None:
+        if self._h_t_final is None:
             raise RuntimeError(
                 "Last hidden state is None after forward pass unexpectedly.")
 
-        if temperature == 1.0:
+        if temp == 1.0:
             char_id = np.argmax(y_proba, axis=1)
         else:
             y_proba_clipped = np.clip(y_proba, 1e-9, 1.0)
 
             log_probas = np.log(y_proba_clipped)
-            scaled_log_probas = log_probas / temperature
+            scaled_log_probas = log_probas / temp
 
             exp_scaled_log_probas = (
                 np.exp(scaled_log_probas -
                        np.max(scaled_log_probas, axis=1, keepdims=True)))
 
-            probas_temp_scaled = (
+            final_probas = (
                 exp_scaled_log_probas /
                 np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
 
             char_id = np.array([
-                np.random.choice(self.V, p=probas_temp_scaled[i])
+                np.random.choice(self.V, p=final_probas[i])
                 for i in range(y_proba.shape[0])
             ])
 
-        return char_id, self._h_t_final_for_generation
+        return char_id, self._h_t_final
 
     def generate_sequence(self,
                           vectorizer: TextVectorizer,
@@ -166,7 +165,7 @@ class CharRNN:
         y_emb = self._embedding_layer.forward(x)
 
         h_t_final = self._recurrent_layer.forward(y_emb, h_0=h_0)
-        self._h_t_final_for_generation = h_t_final
+        self._h_t_final = h_t_final
 
         return self._dense_layer.forward(h_t_final)
 

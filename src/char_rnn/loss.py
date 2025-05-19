@@ -23,13 +23,11 @@ class Loss(ABC):
 
 class SparseCategoricalCrossEntropy(Loss):
 
-    def __init__(self,
-                 epsilon: float = 1e-12,
-                 name: Optional[str] = None) -> None:
+    def __init__(self, eps: float = 1e-12, name: Optional[str] = None) -> None:
         super().__init__(name)
-        self.epsilon = epsilon
+        self.eps = eps
 
-        logger.info("%s initialized with epsilon=%e.", self.name, self.epsilon)
+        logger.info("%s initialized with epsilon=%e.", self.name, self.eps)
 
     def forward(self, y_pred: np.ndarray, y_true: np.ndarray) -> float:
         if y_pred.ndim != 2:
@@ -54,13 +52,13 @@ class SparseCategoricalCrossEntropy(Loss):
                 "True outputs contains values out of bounds for number of "
                 f"classes {V}.")
 
-        y_pred_clipped = np.clip(y_pred, self.epsilon, 1.0 - self.epsilon)
+        y_pred_clipped = np.clip(y_pred, self.eps, 1.0 - self.eps)
 
-        correct_class_probabilites = y_pred_clipped[np.arange(N), y_true]
+        p_true = y_pred_clipped[np.arange(N), y_true]
 
-        log_likelihoods = -np.log(correct_class_probabilites)
+        log_probas = -np.log(p_true)
 
-        mean_loss = np.mean(log_likelihoods)
+        mean_loss = np.mean(log_probas)
 
         logger.debug(
             "%s forward pass: y_pred_shape=%s, y_true_shape=%s, "
@@ -84,16 +82,16 @@ class SparseCategoricalCrossEntropy(Loss):
                 f"Batch size mismatch between predictions ({y_pred.shape[0]}) "
                 f"and true outputs ({y_true.shape[0]}).")
 
-        batch_size = y_pred.shape[0]
+        N = y_pred.shape[0]
 
-        y_pred_clipped = np.clip(y_pred, self.epsilon, 1.0 - self.epsilon)
+        y_pred_clipped = np.clip(y_pred, self.eps, 1.0 - self.eps)
 
         dL_dp = np.zeros_like(y_pred_clipped)
 
-        dL_dp[np.arange(batch_size),
-              y_true] = -1.0 / y_pred_clipped[np.arange(batch_size), y_true]
+        dL_dp[np.arange(N),
+              y_true] = -1.0 / y_pred_clipped[np.arange(N), y_true]
 
-        dL_dp /= batch_size
+        dL_dp /= N
 
         logger.debug(
             "%s backward pass: y_pred_shape=%s, y_true_shape=%s, "
