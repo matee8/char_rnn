@@ -47,7 +47,7 @@ def save_model_weights(model: Model, filepath: str) -> None:
                        model.name)
         return
 
-    np.savez_compressed(path, *weights_to_save)
+    np.savez_compressed(path, **weights_to_save, allow_pickle=False)
     logger.info("Model weights (%d arrays) successfully saved to '%s'.",
                 len(weights_to_save), filepath)
 
