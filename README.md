@@ -188,14 +188,15 @@ The project is structured to separate concerns.
 
 # Future enhancements
 
+- **Validation during training**: Divide the data into a training and validation set, and log validation loss.
+- **Test after training**: Evaluate the accuracy of next character prediction after training the model.
 - **Module for activation functions**: Implement a module for collecting all activation functions and pass them to the layers when instantiated.
 - **Advanced recurrent cells**: Implement more sophisticated RNN cells for improved sequence modeling capabilities.
 - **Hyperparameter optimization**: Implement routines for automated hyperparameter tuning to find optimal model configurations.
 
 # License
 
-This project is licensed under the MIT License - see the `LICENSE` file for
-details.
+This project is licensed under the [MIT License](LICENSE).
 
 # Acknowledgements
 
