@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 import logging
 import sys
@@ -13,8 +15,8 @@ logging.basicConfig(level=logging.INFO,
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_WEIGHTS_PATH = Path(
-    __file__).parent.parent / "models" / "char_rnn_shakespeare.npz"
+DEFAULT_WEIGHTS_PATH = (Path(__file__).parent.parent / "models" /
+                        "char_rnn_shakespeare.npz")
 DEFAULT_DATA_PATH = Path(__file__).parent.parent / "data" / "raw" / "input.txt"
 
 
