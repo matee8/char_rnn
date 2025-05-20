@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 class Optimizer(ABC):
 
     def __init__(self,
-                 learning_rate: float,
+                 eta: float,
                  name: Optional[str] = None) -> None:
-        if learning_rate <= 0:
+        if eta <= 0:
             raise ValueError("Learning rate must be positive.")
 
-        self.learning_rate = learning_rate
+        self.eta = eta
         self.name = name or self.__class__.__name__
 
         self.t = 0
@@ -30,12 +30,12 @@ class Optimizer(ABC):
 class Adam(Optimizer):
 
     def __init__(self,
-                 learning_rate: float = 0.001,
+                 eta: float = 0.001,
                  beta1: float = 0.9,
                  beta2: float = 0.999,
                  epsilon: float = 1e-7,
                  name: Optional[str] = None) -> None:
-        super().__init__(learning_rate, name)
+        super().__init__(eta, name)
 
         if not 0.0 < beta1 < 1.0:
             raise ValueError("beta1 must be between 0 and 1.")
@@ -51,8 +51,8 @@ class Adam(Optimizer):
         self.v: Dict[int, Dict[str, np.ndarray]] = {}
 
         logger.info(
-            "%s initialized with learning_rate=%.0e, beta1=%.3f, "
-            "beta2=%.3f, epsilon=%.0e.", self.name, self.learning_rate,
+            "%s initialized with eta=%.0e, beta1=%.3f, "
+            "beta2=%.3f, epsilon=%.0e.", self.name, self.eta,
             self.beta1, self.beta2, self.epsilon)
 
     def step(self, layers: List[Layer]) -> None:
@@ -93,7 +93,7 @@ class Adam(Optimizer):
                 m_hat = self.m[layer_id][param_name] / (1 - self.beta1**self.t)
                 v_hat = self.v[layer_id][param_name] / (1 - self.beta2**self.t)
 
-                param_value -= self.learning_rate * m_hat / (np.sqrt(v_hat) +
+                param_value -= self.eta * m_hat / (np.sqrt(v_hat) +
                                                              self.epsilon)
 
                 logger.debug("%s updated param '%s' in layer '%s'.", self.name,
