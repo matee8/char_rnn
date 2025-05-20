@@ -4,6 +4,7 @@ import argparse
 import logging
 import random
 import time
+import sys
 
 from pathlib import Path
 from typing import List
@@ -25,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DATA_URL = ("https://raw.githubusercontent.com/karpathy/char-rnn/"
                     "master/data/tinyshakespeare/input.txt")
-DEFAULT_DATA_DIR = "data/raw"
-DEFAULT_MODEL_DIR = "models"
+DEFAULT_DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
+DEFAULT_MODEL_DIR = Path(__file__).parent.parent / "models"
 DEFAULT_DATA_FILENAME = "input.txt"
 DEFAULT_MODEL_FILENAME = "char_rnn_shakespeare"
 
@@ -55,18 +56,15 @@ def main(args: argparse.Namespace):
         random.seed(args.seed)
         logger.info("Using random seed: %d.", args.seed)
 
-    project_root = Path(__file__).resolve().parent.parent
-    data_dir = project_root / args.data_dir
-    model_dir = project_root / args.model_dir
-
-    data_file_path = data_dir / args.data_filename
+    data_file_path = args.data_dir / args.data_filename
+    model_file_base_path = args.model_dir / args.model_filename
 
     try:
-        data_dir.mkdir(parents=True, exist_ok=True)
-        model_dir.mkdir(parents=True, exist_ok=True)
+        args.data_dir.mkdir(parents=True, exist_ok=True)
+        args.model_dir.mkdir(parents=True, exist_ok=True)
     except OSError as e:
         logger.error("Could not create directories: %s.", e, exc_info=True)
-        return
+        sys.exit(1)
 
     if not data_file_path.exists():
         logger.info("Dataset not found. Downloading from %s...", args.data_url)
@@ -74,10 +72,10 @@ def main(args: argparse.Namespace):
             download_file(args.data_url, data_file_path)
         except requests.exceptions.RequestException as e:
             logger.error("Download failed: %s.", e, exc_info=True)
-            return
+            sys.exit(1)
         except IOError as e:
             logger.error("Could not write to file: %s.", e, exc_info=True)
-            return
+            sys.exit(1)
     else:
         logger.info("Dataset already exists at %s. Skipping download.",
                     data_file_path)
@@ -89,20 +87,24 @@ def main(args: argparse.Namespace):
                      data_file_path,
                      e,
                      exc_info=True)
-        return
+        sys.exit(1)
 
     if not text_data:
         logger.error("Loaded data is empty. Exiting.")
-        return
+        sys.exit(1)
 
-    vectorizer = TextVectorizer()
-    vectorizer.fit(text_data)
+    try:
+        vectorizer = TextVectorizer()
+        vectorizer.fit(text_data)
+    except (ValueError, RuntimeError) as e:
+        logger.error("Failed to preprocess data: %s.", e, exc_info=True)
+        sys.exit(1)
 
     try:
         encoded_text = vectorizer.encode([text_data])[0]
     except ValueError as e:
         logger.error("Error encoding text: %s.", e, exc_info=True)
-        return
+        sys.exit(1)
 
     try:
         model = CharRNN(V=vectorizer.vocabulary_size,
@@ -115,7 +117,7 @@ def main(args: argparse.Namespace):
         logger.error("Error initializing model components: %s.",
                      e,
                      exc_info=True)
-        return
+        sys.exit(1)
 
     logger.info(
         "Starting training, num_epochs=%d, batch_size=%d, "
@@ -130,17 +132,16 @@ def main(args: argparse.Namespace):
                 L_w=args.window_size,
                 N=args.batch_size,
                 shuffle=True,
-                seed=args.seed + epoch,
+                seed=args.seed + epoch if args.seed is not None else None,
                 drop_last=True)
         except (ValueError, RuntimeError) as e:
             logger.error("Error creating batch generator: %s.",
                          e,
                          exc_info=True)
-            continue
+            sys.exit(1)
 
         for i, (x, y) in enumerate(batch_generator):
             try:
-                print(x.shape)
                 loss = model.train_step(x, y)
                 epoch_losses.append(loss)
 
@@ -153,12 +154,17 @@ def main(args: argparse.Namespace):
                              exc_info=True)
                 continue
 
-        avg_epoch_loss = np.mean(epoch_losses)
+        if not epoch_losses:
+            logger.warning("Epoch %d completed with no batches processed.",
+                           epoch)
+            avg_epoch_loss = float("nan")
+        else:
+            avg_epoch_loss = np.mean(epoch_losses)
         logger.info("Epoch %d/%d - Loss: %.4f", epoch, args.num_epochs,
                     avg_epoch_loss)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    model_path = model_dir / (args.model_filename + timestamp)
+    model_path = model_file_base_path.with_suffix(f".{timestamp}.npz")
 
     logger.info("Training completed. Saving model weights to %s...",
                 model_path)
@@ -181,7 +187,7 @@ def parse_arguments() -> argparse.Namespace:
                            default=DEFAULT_DATA_URL,
                            help="URL to download the dataset from.")
     data_args.add_argument("--data-dir",
-                           type=str,
+                           type=Path,
                            default=DEFAULT_DATA_DIR,
                            help="Directory to store downloaded data.")
     data_args.add_argument("--data-filename",
@@ -196,7 +202,7 @@ def parse_arguments() -> argparse.Namespace:
                             help="Dimension of character embeddings.")
     model_args.add_argument("--hidden-dim", type=int, default=10, help="")
     model_args.add_argument("--learning-rate",
-                            type=int,
+                            type=float,
                             default=0.001,
                             help="Learning rate for the Adam optimizer.")
 
@@ -218,10 +224,9 @@ def parse_arguments() -> argparse.Namespace:
                                default=42,
                                help="Random seed.")
 
-    output_args = parser.add_argument_group(
-        "Output and logging configuration")
+    output_args = parser.add_argument_group("Output and logging configuration")
     output_args.add_argument("--model-dir",
-                             type=str,
+                             type=Path,
                              default=DEFAULT_MODEL_DIR,
                              help="Directory to save trained models.")
     output_args.add_argument("--model-filename",
@@ -234,8 +239,38 @@ def parse_arguments() -> argparse.Namespace:
                              default=10,
                              help="Log training loss every N batches.")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.embedding_dim <= 0:
+        raise argparse.ArgumentError(args.embedding_dim, "must be positive.")
+
+    if args.hidden_dim <= 0:
+        raise argparse.ArgumentError(args.hidden_dim, "must be positive.")
+
+    if args.learning_rate <= 0:
+        raise argparse.ArgumentError(args.learning_rate, "must be positive.")
+
+    if args.window_size < 2:
+        raise argparse.ArgumentError(args.window_size,
+                                     "must be greater than 2.")
+
+    if args.batch_size <= 0:
+        raise argparse.ArgumentError(args.batch_size, "must be positive.")
+
+    if args.num_epochs <= 0:
+        raise argparse.ArgumentError(args.num_epochs, "must be positive.")
+
+    if args.log_interval <= 0:
+        raise argparse.ArgumentError(args.log_interval, "must be positive.")
+
+    return args
 
 
 if __name__ == "__main__":
-    main(parse_arguments())
+    try:
+        parsed_args = parse_arguments()
+    except argparse.ArgumentError as e:
+        logger.error("Argument error: %s.", e, exc_info=True)
+        sys.exit(1)
+
+    main(parsed_args)

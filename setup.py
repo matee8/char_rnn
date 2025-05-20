@@ -7,8 +7,6 @@ AUTHOR = "matee8"
 AUTHOR_EMAIL = "graves-bluff-pesky@duck.com"
 URL = "https://github.com/matee8/char_rnn"
 
-SCRIPTS = ["scripts/train.py"]
-
 REQUIRED = ["numpy==2.2.5"]
 
 try:
@@ -17,17 +15,14 @@ try:
 except FileNotFoundError:
     LONG_DESCRIPTION = DESCRIPTION
 
-setup(
-    name=NAME,
-    version=VERSION,
-    description=DESCRIPTION,
-    long_description=LONG_DESCRIPTION,
-    long_description_content_type="text/markdown",
-    author=AUTHOR,
-    author_email=AUTHOR_EMAIL,
-    url=URL,
-    package_dir={"": "src"},
-    packages=find_packages(where="src"),
-    install_requires=REQUIRED,
-    scripts=SCRIPTS,
-)
+setup(name=NAME,
+      version=VERSION,
+      description=DESCRIPTION,
+      long_description=LONG_DESCRIPTION,
+      long_description_content_type="text/markdown",
+      author=AUTHOR,
+      author_email=AUTHOR_EMAIL,
+      url=URL,
+      package_dir={"": "src"},
+      packages=find_packages(where="src"),
+      install_requires=REQUIRED)
