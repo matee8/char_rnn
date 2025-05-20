@@ -175,3 +175,6 @@ cython_debug/
 
 # Datasets
 data/
+
+# Trained models
+models/
