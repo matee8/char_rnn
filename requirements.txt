@@ -1,1 +1,8 @@
+certifi==2025.4.26
+-e git+https://github.com/matee8/char_rnn.git@9823f66935605d26cac3a98b1b292865e2410d58#egg=char_rnn
+charset-normalizer==3.4.2
+idna==3.10
 numpy==2.2.5
+requests==2.32.3
+setuptools==80.7.1
+urllib3==2.4.0
