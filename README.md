@@ -200,4 +200,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 # Acknowledgements
 
-Inspired by Andrej Karpathy's blog post "The Unreasonable Effectiveness of Recurrent Neural Networks".
+Inspired by [Andrej Karpathy's blog post "The Unreasonable Effectiveness of Recurrent Neural Networks"](https://karpathy.github.io/2015/05/21/rnn-effectiveness/).
