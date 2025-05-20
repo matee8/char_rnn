@@ -7,8 +7,8 @@ import random
 from typing import List
 
 from char_rnn import preprocessing
-from char_rnn.loss import SparseCategoricalCrossEntropy
-from char_rnn.model import CharRNN
+from char_rnn.losses import SparseCategoricalCrossEntropy
+from char_rnn.models import CharRNN
 from char_rnn.optimizers import Adam
 from char_rnn.preprocessing import TextVectorizer
 

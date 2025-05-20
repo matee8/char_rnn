@@ -11,29 +11,25 @@ class TextVectorizer:
     def __init__(self) -> None:
         self._char_to_id: Dict[str, int] = {}
         self._id_to_char: Dict[int, str] = {}
-        self._vocab: List[str] = []
-
-    @property
-    def vocabulary(self) -> List[str]:
-        return self._vocab.copy()
+        self.vocab: List[str] = []
 
     @property
     def vocabulary_size(self) -> int:
-        return len(self._vocab)
+        return len(self.vocab)
 
     def fit(self, text_corpus: str) -> None:
         if not text_corpus:
             raise ValueError("Input text corpus cannot be empty.")
 
-        self._vocab = sorted(list(set(text_corpus)))
-        self._char_to_id = {char: i for i, char in enumerate(self._vocab)}
-        self._id_to_char = {i: char for i, char in enumerate(self._vocab)}
+        self.vocab = sorted(list(set(text_corpus)))
+        self._char_to_id = {char: i for i, char in enumerate(self.vocab)}
+        self._id_to_char = {i: char for i, char in enumerate(self.vocab)}
 
         logger.info("TextVectorizer fitted with vocabulary size: %d",
-                    len(self._vocab))
+                    len(self.vocab))
 
     def encode(self, texts: List[str]) -> np.ndarray:
-        if not self._vocab:
+        if not self.vocab:
             raise RuntimeError("Must call fit() before encode().")
 
         if not texts:
@@ -63,7 +59,7 @@ class TextVectorizer:
         return sequences
 
     def decode(self, sequences: np.ndarray) -> List[str]:
-        if not self._vocab:
+        if not self.vocab:
             raise RuntimeError("Must call fit() before decode()")
 
         if sequences.ndim != 2:

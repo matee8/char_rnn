@@ -207,6 +207,10 @@ class Recurrent(Layer):
 
         self._last_x = x
         self._last_h_seq = np.zeros((N, T_seq + 1, self.D_h), dtype=x.dtype)
+        if self._last_h_seq is None:
+            raise ValueError(
+                "Failed to initialize last hidden states sequence.")
+
         self._last_h_seq[:, 0, :] = h_t
 
         for t in range(T_seq):

@@ -1,23 +1,52 @@
 import logging
-from typing import Optional, Tuple
+from abc import ABC, abstractmethod
+from typing import List, Optional, Tuple
 
 import numpy as np
 
-from char_rnn.layers import Dense, Embedding, Recurrent
-from char_rnn.loss import Loss
+from char_rnn.layers import Dense, Embedding, Layer, Recurrent
+from char_rnn.losses import Loss
 from char_rnn.optimizers import Optimizer
 from char_rnn.preprocessing import TextVectorizer
 
 logger = logging.getLogger(__name__)
 
 
-class CharRNN:
+class Model(ABC):
+
+    def __init__(self, name: Optional[str]) -> None:
+        self.name = name or self.__class__.__name__
+
+        self.trainable_layers: List[Layer] = []
+
+        self._loss_fn: Optional[Loss] = None
+        self._optimizer: Optional[Optimizer] = None
+
+    @abstractmethod
+    def train_step(self, x: np.ndarray, y: np.ndarray, **kwargs) -> float:
+        pass
+
+    @abstractmethod
+    def predict(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        pass
+
+    def compile(self, optimizer: Optimizer, loss_fn: Loss) -> None:
+        self._optimizer = optimizer
+        self._loss_fn = loss_fn
+
+        logger.info("%s compiled with optimizer: %s, loss function: %s.",
+                    self.name, self._optimizer.name, self._loss_fn.name)
+
+
+class CharRNN(Model):
 
     def __init__(self,
                  V: int,
                  D_e: int,
                  D_h: int,
                  name: Optional[str] = None) -> None:
+        super().__init__(name)
+
         if V <= 0:
             raise ValueError("Vocabulary size (V) must be positive.")
 
@@ -27,7 +56,6 @@ class CharRNN:
         if D_h <= 0:
             raise ValueError("Hidden dimension (D_h) must be positive.")
 
-        self.name = name or self.__class__.__name__
         self.V = V
         self.D_e = D_e
         self.D_h = D_h
@@ -36,26 +64,16 @@ class CharRNN:
         self._recurrent_layer = Recurrent(D_in=self.D_e, D_h=self.D_h)
         self._dense_layer = Dense(D_in=self.D_h, D_out=self.V)
 
-        self._trainable_layers = [
+        self.trainable_layers = [
             self._embedding_layer, self._recurrent_layer, self._dense_layer
         ]
-
-        self._loss_fn: Optional[Loss] = None
-        self._optimizer: Optional[Optimizer] = None
 
         self._h_t_final: Optional[np.ndarray] = None
 
         logger.info("%s initialized with V=%d, D_e=%d, D_h=%d", self.name,
                     self.V, self.D_e, self.D_h)
 
-    def compile(self, optimizer: Optimizer, loss_fn: Loss) -> None:
-        self._optimizer = optimizer
-        self._loss_fn = loss_fn
-
-        logger.info("%s compiled with optimizer: %s, loss function: %s.",
-                    self.name, self._optimizer.name, self._loss_fn.name)
-
-    def train_step(self, x: np.ndarray, y: np.ndarray) -> float:
+    def train_step(self, x: np.ndarray, y: np.ndarray, **kwargs) -> float:
         if self._loss_fn is None or self._optimizer is None:
             raise RuntimeError(
                 f"{self.name} has not been compiled yet. Call compile("
@@ -69,14 +87,14 @@ class CharRNN:
 
         self._backward_pass(dL_dy_pred)
 
-        self._optimizer.step(self._trainable_layers)
+        self._optimizer.step(self.trainable_layers)
 
         return loss
 
-    def predict_next_char_probas(
-            self,
-            x: np.ndarray,
-            h_0: Optional[np.ndarray] = None) -> np.ndarray:
+    def predict(self,
+                x: np.ndarray,
+                h_0: Optional[np.ndarray] = None,
+                **kwargs) -> np.ndarray:
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
@@ -92,7 +110,7 @@ class CharRNN:
         if temp <= 0.0:
             raise ValueError("Temperature must be positive.")
 
-        y_proba = self.predict_next_char_probas(x, h_0)
+        y_proba = self.predict(x, h_0)
 
         if self._h_t_final is None:
             raise RuntimeError(
