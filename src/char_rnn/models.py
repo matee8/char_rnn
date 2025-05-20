@@ -145,7 +145,7 @@ class CharRNN(Model):
                           n_chars: int,
                           temperature: float = 1.0) -> str:
         if self.V != vectorizer.vocabulary_size:
-            logger.warning(
+            logger.error(
                 "%s: model vocab size (%d) does not match "
                 "vectorizer vocab size (%d). Ensure they are "
                 "compatible.", self.name, self.V, vectorizer.vocabulary_size)
