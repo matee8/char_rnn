@@ -6,7 +6,7 @@ import logging
 import random
 from typing import List
 
-from char_rnn import util
+from char_rnn import preprocessing
 from char_rnn.loss import SparseCategoricalCrossEntropy
 from char_rnn.model import CharRNN
 from char_rnn.optimizers import Adam
@@ -69,7 +69,7 @@ def main():
         for epoch in range(NUM_EPOCHS):
             epoch_losses: List[float] = []
 
-            mini_batch_generator = util.create_batch_sequences(
+            mini_batch_generator = preprocessing.create_batch_sequences(
                 x,
                 L_w=WINDOW_SIZE,
                 N=BATCH_SIZE,
@@ -96,7 +96,7 @@ def main():
         num_to_generate = 50
 
         generated_text = model.generate_sequence(vectorizer=vectorizer,
-                                                 prompt=prompt,
+                                                 text=prompt,
                                                  n_chars=num_to_generate,
                                                  temperature=1.0)
         logger.info("Generated text (%d chars, temp=1.0): '%s'",
