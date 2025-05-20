@@ -140,6 +140,7 @@ def main(args: argparse.Namespace):
 
         for i, (x, y) in enumerate(batch_generator):
             try:
+                print(x.shape)
                 loss = model.train_step(x, y)
                 epoch_losses.append(loss)
 
@@ -188,7 +189,7 @@ def parse_arguments() -> argparse.Namespace:
                            default=DEFAULT_DATA_FILENAME,
                            help="Filename for the dataset within data_dir.")
 
-    model_args = parser.add_argument_group("Model hyperparameters.")
+    model_args = parser.add_argument_group("Model hyperparameters")
     model_args.add_argument("--embedding-dim",
                             type=int,
                             default=128,
@@ -199,7 +200,7 @@ def parse_arguments() -> argparse.Namespace:
                             default=0.001,
                             help="Learning rate for the Adam optimizer.")
 
-    training_args = parser.add_argument_group("Training parameters.")
+    training_args = parser.add_argument_group("Training parameters")
     training_args.add_argument("--window-size",
                                type=int,
                                default=100,
@@ -218,7 +219,7 @@ def parse_arguments() -> argparse.Namespace:
                                help="Random seed.")
 
     output_args = parser.add_argument_group(
-        "Output and logging configuration.")
+        "Output and logging configuration")
     output_args.add_argument("--model-dir",
                              type=str,
                              default=DEFAULT_MODEL_DIR,
