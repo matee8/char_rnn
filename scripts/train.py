@@ -120,7 +120,7 @@ def main(args: argparse.Namespace):
 
     try:
         X_all, y_all = preprocessing.create_sliding_windows(
-            s=encoded_text, L_w=args.window_size, shuffle=False)
+            s=encoded_text, L_w=args.window_size)
     except (ValueError, RuntimeError) as e:
         logger.error("Error creating sliding windows: %s.", e, exc_info=True)
         sys.exit(1)
@@ -262,6 +262,12 @@ def parse_arguments() -> argparse.Namespace:
 
     if args.log_interval <= 0:
         raise argparse.ArgumentError(args.log_interval, "must be positive.")
+
+    if not 0.0 < args.train_size < 1.0:
+        raise argparse.ArgumentError(args.train_size, "must be between 0.0 and 1.0")
+
+    if not 0.0 < args.validation_size < 1.0:
+        raise argparse.ArgumentError(args.validation_size, "must be between 0.0 and 1.0")
 
     return args
 

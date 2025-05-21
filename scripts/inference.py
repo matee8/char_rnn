@@ -98,7 +98,7 @@ def main(args: argparse.Namespace):
                         D_h=args.hidden_dim)
         utils.load_model_weights(model, args.weights_path)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
-        logger.critical("Failed to initialize model or load weights: %s.",
+        logger.error("Failed to initialize model or load weights: %s.",
                         e,
                         exc_info=True)
         sys.exit(1)
@@ -110,7 +110,7 @@ def main(args: argparse.Namespace):
                                        n_chars=args.num_to_generate,
                                        temperature=args.temperature)
     except (ValueError, RuntimeError) as e:
-        logger.critical("An error occured during text generation: %s",
+        logger.error("An error occured during text generation: %s",
                         e,
                         exc_info=True)
         sys.exit(1)
@@ -155,6 +155,13 @@ def parse_arguments() -> argparse.Namespace:
                         help="Initial string to start the text generation.")
 
     args = parser.parse_args()
+
+    if not args.weights_path.is_file():
+        raise argparse.ArgumentError(args.weights_path, "file not found.")
+
+    if not args.vocab_data_path.is_file():
+        raise argparse.ArgumentError(args.weights_path, "file not found.")
+
 
     if args.temperature <= 0:
         raise argparse.ArgumentError(args.temperature,

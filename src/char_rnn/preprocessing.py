@@ -147,11 +147,8 @@ def train_test_split(
     return X_train, X_test, y_train, y_test
 
 
-def create_sliding_windows(
-        s: np.ndarray,
-        L_w: int,
-        shuffle: bool = False,
-        seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+def create_sliding_windows(s: np.ndarray,
+                           L_w: int) -> Tuple[np.ndarray, np.ndarray]:
     if s.ndim != 1:
         raise ValueError("Input data sequence must be a 1D NumPy array, got "
                          f"{s.ndim}D array with shape {s.shape}")
@@ -176,14 +173,6 @@ def create_sliding_windows(
 
     logger.info("Created %d sliding windows. X shape: %s, y shape: %s.",
                 num_windows, X.shape, y.shape)
-
-    if shuffle:
-        rng = np.random.default_rng(seed)
-        permutation = rng.permutation(num_windows)
-        X = X[permutation]
-        y = y[permutation]
-        logger.debug("Shufled the windows. Seed: %d.", seed)
-
     return X, y
 
 
