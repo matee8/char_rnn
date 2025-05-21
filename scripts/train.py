@@ -125,10 +125,6 @@ def main(args: argparse.Namespace):
         logger.error("Error creating sliding windows: %s.", e, exc_info=True)
         sys.exit(1)
 
-    logger.info(
-        "Starting training, num_epochs=%d, batch_size=%d, "
-        "window_size=%d.", args.num_epochs, args.batch_size, args.window_size)
-
     try:
         X_batches, y_batches = preprocessing.create_mini_batches(
             X=X_all, y=y_all, N=args.batch_size, drop_last=True)
@@ -137,8 +133,22 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        model.fit(X_batches, y_batches, args.num_epochs, args.log_interval,
-                  args.seed)
+        X_train, _, y_train, _ = preprocessing.train_test_split(
+            X_batches, y_batches, 0.9)
+        X_train, X_valid, y_train, y_valid = (preprocessing.train_test_split(
+            X_train, y_train))
+    except (ValueError, RuntimeError) as e:
+        logger.error("Error splitting dataset: %s.", e, exc_info=True)
+        sys.exit(1)
+
+    try:
+        model.fit(X_batches=X_train,
+                  y_batches=y_train,
+                  num_epochs=args.num_epochs,
+                  log_interval=args.log_interval,
+                  X_val=X_valid,
+                  y_val=y_valid,
+                  seed=args.seed)
     except (ValueError, RuntimeError) as e:
         logger.error("Failed to train model: %s.", e, exc_info=True)
         sys.exit(1)

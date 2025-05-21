@@ -91,20 +91,24 @@ class TextVectorizer:
         return texts
 
 
-def train_test_split(X: np.ndarray, y: np.ndarray, test_size: float = 0.2) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def train_test_split(
+    X: np.ndarray,
+    y: np.ndarray,
+    test_size: float = 0.2
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     if X.shape[0] != y.shape[0]:
         raise ValueError(f"Number of samples mismatch between inputs "
                          f"({X.shape[0]}) and outputs ({y.shape[0]})")
 
     if X.ndim < 2:
-        raise ValueError("Inputs must be at least 2D NumPy array, got " 
+        raise ValueError("Inputs must be at least 2D NumPy array, got "
                          f"{X.ndim}D array with shape {X.shape}.")
 
-    if y.ndim != 1:
-        raise ValueError(f"Outputs must be a 1D NumPy array, got {y.ndim}D "
+    if y.ndim != 2:
+        raise ValueError(f"Outputs must be a 2D NumPy array, got {y.ndim}D "
                          f"array with shape {y.shape}")
 
-    if not (0.0 < test_size < 1.0):
+    if not 0.0 < test_size < 1.0:
         raise ValueError("Test size must be a float between 0.0 and 1.0.")
 
     num_samples = X.shape[0]
@@ -112,8 +116,9 @@ def train_test_split(X: np.ndarray, y: np.ndarray, test_size: float = 0.2) -> Tu
         raise ValueError("No samples to split.")
 
     if num_samples < 2:
-        raise ValueError("Not enough samples to create non-empty train and test"
-                         "sets. Need at least 2 samples.")
+        raise ValueError(
+            "Not enough samples to create non-empty train and test"
+            "sets. Need at least 2 samples.")
 
     num_test_samples = int(num_samples * test_size)
     num_train_samples = num_samples - num_test_samples
@@ -135,8 +140,9 @@ def train_test_split(X: np.ndarray, y: np.ndarray, test_size: float = 0.2) -> Tu
     X_train, X_test = X[train_indices], X[test_indices]
     y_train, y_test = y[train_indices], y[test_indices]
 
-    logger.info("Dataset split into train and test, train_size=%d, test_size=%d",
-                X_train.shape[0], X_test.shape[0])
+    logger.info(
+        "Dataset split into train and test, train_size=%d, test_size=%d",
+        X_train.shape[0], X_test.shape[0])
 
     return X_train, X_test, y_train, y_test
 

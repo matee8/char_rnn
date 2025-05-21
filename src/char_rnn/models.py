@@ -30,16 +30,13 @@ class Model(ABC):
                     self.name, self._optimizer.name, self._loss_fn.name)
 
     @abstractmethod
-    def _forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        pass
-
-    @abstractmethod
-    def _backward(self, dL_dy: np.ndarray) -> None:
-        pass
-
-    @abstractmethod
     def predict(self, x: np.ndarray,
                 **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        pass
+
+    @abstractmethod
+    def evaluate(self, X_batches: np.ndarray, y_batches: np.ndarray,
+                 **kwargs) -> float:
         pass
 
     def fit(self,
@@ -47,6 +44,8 @@ class Model(ABC):
             y_batches: np.ndarray,
             num_epochs: int,
             log_interval: int,
+            X_val: Optional[np.ndarray] = None,
+            y_val: Optional[np.ndarray] = None,
             seed: Optional[int] = None) -> None:
         if self._loss_fn is None or self._optimizer is None:
             raise RuntimeError(
@@ -60,6 +59,14 @@ class Model(ABC):
             raise ValueError("Interval of logs must be positive.")
 
         num_total_batches = X_batches.shape[0]
+
+        if X_val is not None and y_val is not None:
+            if X_val.shape[0] > 0:
+                logger.info("Validation dataset provided with %d batches.",
+                            X_val.shape[0])
+            else:
+                logger.warning("Validation dataset is empty. Skipping "
+                               "validation.")
 
         logger.info(
             "Starting training for %s over %d epochs, with %d batches "
@@ -107,6 +114,25 @@ class Model(ABC):
             logger.info("Epoch %d/%d - Average Loss: %.4f", epoch, num_epochs,
                         avg_epoch_loss)
 
+            if X_val is not None and y_val is not None:
+                try:
+                    val_accuracy = self.evaluate(X_val, y_val)
+                    logger.info("Epoch %d/%d - Validation accuracy: %.4f",
+                                epoch, num_epochs, val_accuracy)
+                except Exception as e:
+                    logger.error("Error during validation for epoch %d: %s.",
+                                 epoch,
+                                 e,
+                                 exc_info=True)
+
+    @abstractmethod
+    def _forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def _backward(self, dL_dy: np.ndarray) -> None:
+        pass
+
 
 class CharRNN(Model):
 
@@ -143,6 +169,60 @@ class CharRNN(Model):
         logger.info("%s initialized with V=%d, D_e=%d, D_h=%d", self.name,
                     self.V, self.D_e, self.D_h)
 
+    def predict(self,
+                x: np.ndarray,
+                h_0: Optional[np.ndarray] = None,
+                return_hidden: bool = False,
+                **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+
+        if h_0 is not None and h_0.ndim == 1:
+            h_0 = h_0.reshape(1, -1)
+
+        y_pred = self._forward(x, h_0)
+
+        if return_hidden:
+            if self._h_t_final is None:
+                raise RuntimeError("Expected final hidden states to be set "
+                                   "after forward pass but it is None.")
+            return y_pred, self._h_t_final
+        else:
+            return y_pred, None
+
+    def evaluate(self, X_batches: np.ndarray, y_batches: np.ndarray,
+                 **kwargs) -> float:
+        correct = 0
+        total = 0
+
+        num_batches = X_batches.shape[0]
+
+        logger.debug("Starting evaluation for %s over %d batches.", self.name,
+                     num_batches)
+
+        for i, (x, y) in enumerate(zip(X_batches, y_batches)):
+            y_proba = self._forward(x)
+
+            next_chars = np.argmax(y_proba, axis=1)
+
+            correct_in_batch = np.sum(next_chars == y)
+            total_in_batch = y.shape[0]
+
+            correct += correct_in_batch
+            total += total_in_batch
+
+            if (i + 1) % (num_batches // 10 + 1) == 0:
+                logger.info(
+                    "Evaluation progress for %s: Batch %d/%d processed.",
+                    self.name, i + 1, num_batches)
+
+        accuracy = correct / total
+        logger.debug(
+            "%s evaluation completed. Accuracy: %.4f (%d/%d correct).",
+            self.name, accuracy, correct, total)
+
+        return accuracy
+
     def _forward(self,
                  x: np.ndarray,
                  h_0: Optional[np.ndarray] = None,
@@ -167,24 +247,3 @@ class CharRNN(Model):
                 "Recurrent layer backward pass returned None unexpectedly.")
 
         self._embedding_layer.backward(dL_dy_emb)
-
-    def predict(self,
-                x: np.ndarray,
-                h_0: Optional[np.ndarray] = None,
-                return_hidden: bool = False,
-                **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-
-        if h_0 is not None and h_0.ndim == 1:
-            h_0 = h_0.reshape(1, -1)
-
-        y_pred = self._forward(x, h_0)
-
-        if return_hidden:
-            if self._h_t_final is None:
-                raise RuntimeError("Expected final hidden states to be set "
-                                   "after forward pass but it is None.")
-            return y_pred, self._h_t_final
-        else:
-            return y_pred, None
