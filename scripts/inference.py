@@ -32,11 +32,11 @@ def generate_text(model: CharRNN,
     except ValueError as e:
         raise ValueError("Could not encode start string.") from e
 
+    generated_text = encoded_start_string
+
     x_t = encoded_start_string
 
     h_t = np.zeros((1, model.D_h), dtype=np.float32)
-
-    generated_text = x_t
 
     for _ in range(n_chars):
         y_proba, h_t = model.predict(x_t, h_t, return_hidden=True)
@@ -46,7 +46,7 @@ def generate_text(model: CharRNN,
                                "during text generation.")
 
         if temperature == 1.0:
-            next_char_id = np.argmax(y_proba, axis=1)[0]
+            next_char = np.argmax(y_proba, axis=1)[0]
         else:
             y_proba_clipped = np.clip(y_proba, 1e-9, 1.0)
             log_probas = np.log(y_proba_clipped)
@@ -59,10 +59,10 @@ def generate_text(model: CharRNN,
                 exp_scaled_log_probas /
                 np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
 
-            next_char_id = np.random.choice(model.V, p=final_probas[0])
+            next_char = np.random.choice(model.V, p=final_probas[0])
 
-        generated_text = np.append(generated_text, next_char_id)
-        x_t = np.array([next_char_id])
+        generated_text += next_char
+        x_t = np.array([next_char])
 
     logger.info("Text generation completed successfully.")
 

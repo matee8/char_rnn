@@ -88,7 +88,7 @@ class Model(ABC):
                         logger.info("Epoch %d/%d - Batch %d/%d - Loss: %.4f",
                                     epoch, num_epochs, i + 1,
                                     num_total_batches, loss)
-                except Exception as e: # pylint: disable=broad-exception-caught
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error(
                         "Error during training step for batch %d "
                         "in epoch %d: %s.",

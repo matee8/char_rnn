@@ -132,29 +132,29 @@ def create_sliding_windows(
 
 
 def create_mini_batches(
-        X_all: np.ndarray,
-        y_all: np.ndarray,
+        X: np.ndarray,
+        y: np.ndarray,
         N: int,
         drop_last: bool = False) -> Tuple[np.ndarray, np.ndarray]:
-    if X_all.ndim != 2:
-        raise ValueError(f"Input must be a 2D NumPy array, got {X_all.ndim}D "
-                         f"array with shape {X_all.shape}.")
+    if X.ndim != 2:
+        raise ValueError(f"Input must be a 2D NumPy array, got {X.ndim}D "
+                         f"array with shape {X.shape}.")
 
-    if y_all.ndim != 1:
-        raise ValueError(f"Input must be a 1D NumPy array, got {y_all.ndim}D "
-                         f"array with shape {y_all.shape}.")
+    if y.ndim != 1:
+        raise ValueError(f"Input must be a 1D NumPy array, got {y.ndim}D "
+                         f"array with shape {y.shape}.")
 
-    if X_all.shape[0] != y_all.shape[0]:
+    if X.shape[0] != y.shape[0]:
         raise ValueError(f"Number of instances mismatch between inputs "
-                         f"({X_all.shape[0]}) and labels ({y_all.shape[0]})")
+                         f"({X.shape[0]}) and labels ({y.shape[0]})")
 
-    if X_all.shape[0] == 0:
+    if X.shape[0] == 0:
         raise ValueError("No instances provided to create batches from.")
 
     if N <= 0:
         raise ValueError("Batch size must be positive.")
 
-    num_instances = X_all.shape[0]
+    num_instances = X.shape[0]
 
     if drop_last:
         num_total_batches = num_instances // N
@@ -165,16 +165,15 @@ def create_mini_batches(
         raise ValueError("No batches can be formed with the current batch size"
                          f"{N} and {num_instances} number of instances.")
 
-    X_batched = np.zeros((num_total_batches, N, X_all.shape[1]),
-                         dtype=X_all.dtype)
-    y_batched = np.zeros((num_total_batches, N), dtype=y_all.dtype)
+    X_batched = np.zeros((num_total_batches, N, X.shape[1]), dtype=X.dtype)
+    y_batched = np.zeros((num_total_batches, N), dtype=y.dtype)
 
     for i in range(num_total_batches):
         start = i * N
         end = start + N
 
-        X_batch = X_all[start:end]
-        y_batch = y_all[start:end]
+        X_batch = X[start:end]
+        y_batch = y[start:end]
 
         if X_batch.shape[0] < N and not drop_last:
             padding_needed = N - X_batch.shape[0]
@@ -200,36 +199,36 @@ def create_mini_batches(
 
 
 def shuffle_batches(
-        X_batches: np.ndarray,
-        y_batches: np.ndarray,
+        X_batched: np.ndarray,
+        y_batched: np.ndarray,
         seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
-    if X_batches.ndim != 3:
+    if X_batched.ndim != 3:
         raise ValueError(f"Input must be a 3D NumPy array, got "
-                         f"{X_batches.ndim}D array with shape "
-                         f"{X_batches.shape}.")
+                         f"{X_batched.ndim}D array with shape "
+                         f"{X_batched.shape}.")
 
-    if y_batches.ndim != 2:
+    if y_batched.ndim != 2:
         raise ValueError("Output must be a 2D NumPy array, got "
-                         f"{y_batches.ndim}D array with shape "
-                         f"{y_batches.shape}.")
+                         f"{y_batched.ndim}D array with shape "
+                         f"{y_batched.shape}.")
 
-    if X_batches.shape[0] != y_batches.shape[0]:
+    if X_batched.shape[0] != y_batched.shape[0]:
         raise ValueError("Number of batches mismatch between inputs ("
-                         f"{X_batches.shape[0]}) and outputs ("
-                         f"{y_batches.shape[0]}).")
+                         f"{X_batched.shape[0]}) and outputs ("
+                         f"{y_batched.shape[0]}).")
 
-    if X_batches.shape[0] == 0:
+    if X_batched.shape[0] == 0:
         raise ValueError("No batches to shuffle.")
 
-    num_batches = X_batches.shape[0]
+    num_batches = X_batched.shape[0]
 
     rng = np.random.default_rng(seed)
     permutation = rng.permutation(num_batches)
 
-    X_batches = X_batches[permutation]
-    y_batches = y_batches[permutation]
+    X_batched = X_batched[permutation]
+    y_batched = y_batched[permutation]
 
     logger.info("Shuffled %d batches. Seed: %s.", num_batches,
                 seed if seed is not None else "None")
 
-    return X_batches, y_batches
+    return X_batched, y_batched

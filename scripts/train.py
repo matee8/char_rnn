@@ -131,7 +131,7 @@ def main(args: argparse.Namespace):
 
     try:
         X_batches, y_batches = preprocessing.create_mini_batches(
-            X_all=X_all, y_all=y_all, N=args.batch_size, drop_last=True)
+            X=X_all, y=y_all, N=args.batch_size, drop_last=True)
     except (ValueError, RuntimeError) as e:
         logger.error("Error creating batches: %s.", e, exc_info=True)
         sys.exit(1)
