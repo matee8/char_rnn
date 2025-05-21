@@ -7,7 +7,6 @@ import time
 import sys
 
 from pathlib import Path
-from typing import List
 
 import numpy as np
 import requests
@@ -137,44 +136,12 @@ def main(args: argparse.Namespace):
         logger.error("Error creating batches: %s.", e, exc_info=True)
         sys.exit(1)
 
-    for epoch in range(1, args.num_epochs + 1):
-        epoch_losses: List[float] = []
-
-        try:
-            X_batches_shuffled, y_batches_shuffled = (
-                preprocessing.shuffle_batches(
-                    X_batches, y_batches,
-                    (args.seed + epoch) if args.seed is not None else None))
-        except (ValueError, RuntimeError) as e:
-            logger.error("Failed to shuffle batches for epoch %d: %s.",
-                         epoch,
-                         e,
-                         exc_info=True)
-            sys.exit(1)
-
-        for i, (x, y) in enumerate(zip(X_batches_shuffled,
-                                       y_batches_shuffled)):
-            try:
-                loss = model.train_step(x, y)
-                epoch_losses.append(loss)
-
-                if (i + 1) % args.log_interval == 0:
-                    logger.info("Epoch %d/%d - Batch %d - Loss: %.4f", epoch,
-                                args.num_epochs, i + 1, loss)
-            except Exception as e:
-                logger.error("Error during training step: %s.",
-                             e,
-                             exc_info=True)
-                continue
-
-        if not epoch_losses:
-            logger.warning("Epoch %d completed with no batches processed.",
-                           epoch)
-            avg_epoch_loss = float("nan")
-        else:
-            avg_epoch_loss = np.mean(epoch_losses)
-        logger.info("Epoch %d/%d - Loss: %.4f", epoch, args.num_epochs,
-                    avg_epoch_loss)
+    try:
+        model.fit(X_batches, y_batches, args.num_epochs, args.log_interval,
+                  args.seed)
+    except (ValueError, RuntimeError) as e:
+        logger.error("Failed to train model: %s.", e, exc_info=True)
+        sys.exit(1)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     model_path = model_file_base_path.with_suffix(f".{timestamp}.npz")
@@ -184,7 +151,7 @@ def main(args: argparse.Namespace):
 
     try:
         utils.save_model_weights(model, model_path)
-    except Exception as e:
+    except IOError as e:
         logger.error("Failed to save model weights: %s.", e, exc_info=True)
         return
 

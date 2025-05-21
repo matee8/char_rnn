@@ -4,10 +4,10 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
+from char_rnn import preprocessing
 from char_rnn.layers import Dense, Embedding, Layer, Recurrent
 from char_rnn.losses import Loss
 from char_rnn.optimizers import Optimizer
-from char_rnn.preprocessing import TextVectorizer
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +22,90 @@ class Model(ABC):
         self._loss_fn: Optional[Loss] = None
         self._optimizer: Optional[Optimizer] = None
 
-    @abstractmethod
-    def train_step(self, x: np.ndarray, y: np.ndarray, **kwargs) -> float:
-        pass
-
-    @abstractmethod
-    def predict(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        pass
-
     def compile(self, optimizer: Optimizer, loss_fn: Loss) -> None:
         self._optimizer = optimizer
         self._loss_fn = loss_fn
 
         logger.info("%s compiled with optimizer: %s, loss function: %s.",
                     self.name, self._optimizer.name, self._loss_fn.name)
+
+    @abstractmethod
+    def _forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def _backward(self, dL_dy: np.ndarray) -> None:
+        pass
+
+    @abstractmethod
+    def predict(self, x: np.ndarray,
+                **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        pass
+
+    def fit(self,
+            X_batches: np.ndarray,
+            y_batches: np.ndarray,
+            num_epochs: int,
+            log_interval: int,
+            seed: Optional[int] = None) -> None:
+        if self._loss_fn is None or self._optimizer is None:
+            raise RuntimeError(
+                f"{self.name} has not been compiled yet. Call compile("
+                "optimizer, loss_fn) before training or evaluation.")
+
+        if num_epochs <= 0:
+            raise ValueError("Number of epochs must be positive.")
+
+        if log_interval <= 0:
+            raise ValueError("Interval of logs must be positive.")
+
+        num_total_batches = X_batches.shape[0]
+
+        logger.info(
+            "Starting training for %s over %d epochs, with %d batches "
+            "per epoch.", self.name, num_epochs, num_total_batches)
+
+        for epoch in range(1, num_epochs + 1):
+            epoch_losses: List[float] = []
+
+            X_shuffled, y_shuffled = (preprocessing.shuffle_batches(
+                X_batches, y_batches,
+                (seed + epoch if seed is not None else None)))
+
+            for i, (x, y) in enumerate(zip(X_shuffled, y_shuffled)):
+                try:
+                    y_pred = self._forward(x)
+
+                    loss = self._loss_fn.forward(y_pred, y)
+                    epoch_losses.append(loss)
+
+                    dL_dy_pred = self._loss_fn.backward(y_pred, y)
+                    self._backward(dL_dy_pred)
+
+                    self._optimizer.step(self.trainable_layers)
+
+                    if (i + 1) % log_interval == 0:
+                        logger.info("Epoch %d/%d - Batch %d/%d - Loss: %.4f",
+                                    epoch, num_epochs, i + 1,
+                                    num_total_batches, loss)
+                except Exception as e: # pylint: disable=broad-exception-caught
+                    logger.error(
+                        "Error during training step for batch %d "
+                        "in epoch %d: %s.",
+                        i + 1,
+                        epoch,
+                        e,
+                        exc_info=True)
+                    continue
+
+            if not epoch_losses:
+                logger.warning("Epoch %d completed with no batches processed.")
+                avg_epoch_loss = float("nan")
+            else:
+                avg_epoch_loss = np.mean(epoch_losses)
+
+            logger.info("Epoch %d/%d - Average Loss: %.4f", epoch, num_epochs,
+                        avg_epoch_loss)
 
 
 class CharRNN(Model):
@@ -73,113 +143,10 @@ class CharRNN(Model):
         logger.info("%s initialized with V=%d, D_e=%d, D_h=%d", self.name,
                     self.V, self.D_e, self.D_h)
 
-    def train_step(self, x: np.ndarray, y: np.ndarray, **kwargs) -> float:
-        if self._loss_fn is None or self._optimizer is None:
-            raise RuntimeError(
-                f"{self.name} has not been compiled yet. Call compile("
-                "optimizer, loss_fn) before training or evaluation.")
-
-        y_pred = self._forward_pass(x)
-
-        loss = self._loss_fn.forward(y_pred, y)
-
-        dL_dy_pred = self._loss_fn.backward(y_pred, y)
-
-        self._backward_pass(dL_dy_pred)
-
-        self._optimizer.step(self.trainable_layers)
-
-        return loss
-
-    def predict(self,
-                x: np.ndarray,
-                h_0: Optional[np.ndarray] = None,
-                **kwargs) -> np.ndarray:
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-
-        if h_0 is not None and h_0.ndim == 1:
-            h_0 = h_0.reshape(1, -1)
-
-        return self._forward_pass(x, h_0)
-
-    def predict_next_char(self,
-                          x: np.ndarray,
-                          h_0: Optional[np.ndarray] = None,
-                          temp: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
-        if temp <= 0.0:
-            raise ValueError("Temperature must be positive.")
-
-        y_proba = self.predict(x, h_0)
-
-        if self._h_t_final is None:
-            raise RuntimeError(
-                "Last hidden state is None after forward pass unexpectedly.")
-
-        if temp == 1.0:
-            char_id = np.argmax(y_proba, axis=1)
-        else:
-            y_proba_clipped = np.clip(y_proba, 1e-9, 1.0)
-
-            log_probas = np.log(y_proba_clipped)
-            scaled_log_probas = log_probas / temp
-
-            exp_scaled_log_probas = (
-                np.exp(scaled_log_probas -
-                       np.max(scaled_log_probas, axis=1, keepdims=True)))
-
-            final_probas = (
-                exp_scaled_log_probas /
-                np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
-
-            char_id = np.array([
-                np.random.choice(self.V, p=final_probas[i])
-                for i in range(y_proba.shape[0])
-            ])
-
-        return char_id, self._h_t_final
-
-    def generate_sequence(self,
-                          vectorizer: TextVectorizer,
-                          text: str,
-                          n_chars: int,
-                          temperature: float = 1.0) -> str:
-        if self.V != vectorizer.vocabulary_size:
-            logger.error(
-                "%s: model vocab size (%d) does not match "
-                "vectorizer vocab size (%d). Ensure they are "
-                "compatible.", self.name, self.V, vectorizer.vocabulary_size)
-
-        logger.debug(
-            "%s generating sequence: start_string='%s', num_chars=%d, "
-            "temp=%.2f.", self.name, text, n_chars, temperature)
-
-        generated_text = text
-
-        x = vectorizer.encode([text])[0]
-
-        h_t = np.zeros((1, self.D_h))
-
-        for _ in range(n_chars):
-            x = x.reshape(1, -1)
-
-            next_char_idx_array, h_t = self.predict_next_char(
-                x, h_t, temperature)
-
-            next_char_idx = next_char_idx_array[0]
-
-            next_char = vectorizer.decode(np.array([[next_char_idx]]))[0]
-            generated_text += next_char
-
-            x = np.array([next_char_idx])
-
-        logger.debug("%s generated sequence: '%s'.", self.name, generated_text)
-
-        return generated_text
-
-    def _forward_pass(self,
-                      x: np.ndarray,
-                      h_0: Optional[np.ndarray] = None) -> np.ndarray:
+    def _forward(self,
+                 x: np.ndarray,
+                 h_0: Optional[np.ndarray] = None,
+                 **kwargs) -> np.ndarray:
         y_emb = self._embedding_layer.forward(x)
 
         h_t_final = self._recurrent_layer.forward(y_emb, h_0=h_0)
@@ -187,8 +154,8 @@ class CharRNN(Model):
 
         return self._dense_layer.forward(h_t_final)
 
-    def _backward_pass(self, dL_dy_pred: np.ndarray) -> None:
-        dL_dh_t_final = self._dense_layer.backward(dL_dy_pred)
+    def _backward(self, dL_dy: np.ndarray) -> None:
+        dL_dh_t_final = self._dense_layer.backward(dL_dy)
 
         if dL_dh_t_final is None:
             raise RuntimeError(
@@ -200,3 +167,24 @@ class CharRNN(Model):
                 "Recurrent layer backward pass returned None unexpectedly.")
 
         self._embedding_layer.backward(dL_dy_emb)
+
+    def predict(self,
+                x: np.ndarray,
+                h_0: Optional[np.ndarray] = None,
+                return_hidden: bool = False,
+                **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+
+        if h_0 is not None and h_0.ndim == 1:
+            h_0 = h_0.reshape(1, -1)
+
+        y_pred = self._forward(x, h_0)
+
+        if return_hidden:
+            if self._h_t_final is None:
+                raise RuntimeError("Expected final hidden states to be set "
+                                   "after forward pass but it is None.")
+            return y_pred, self._h_t_final
+        else:
+            return y_pred, None
