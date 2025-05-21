@@ -72,6 +72,7 @@ relying on any external deep learning framework.
 ├── data/                     # Directory for raw text data (created automatically)
 ├── models/                   # Directory for trained model weights (created automatically)
 ├── scripts/
+│   ├── evaluate.py           # Script for evaluating a trained model on a test set
 │   ├── inference.py          # Script for generating text from a trained model
 │   └── train.py              # Script for training the CharRNN model
 ├── src/
@@ -93,8 +94,7 @@ relying on any external deep learning framework.
 
 ## Training the model
 
-The `train.py` script is used to train the model. It will automatically download
-the Tiny Shakespeare dataset if not found locally.
+The `train.py` script is used to train the model.
 
 **Parameters**:
 
@@ -143,6 +143,43 @@ Output and logging configuration:
                         Log training loss every N batches. (default: 10)
 ```
 
+## Evaluating the model
+
+The `evaluate.py` script assesses the accuracy of a pre-trained CharRNN model on
+a test dataset.
+
+**Important**: The `embedding-dim` and `hidden-dim` parameters **must match**
+those used during the training of the weights you are loading. The
+`vocab-data-path` must point to the exact same text file used to build the
+vocabulary during training to ensure consistent character-to-ID mappings.
+
+**Parameters**:
+
+```plaintext
+usage: evaluate.py [-h] [--weights-path WEIGHTS_PATH] [--vocab-data-path VOCAB_DATA_PATH] [--embedding-dim EMBEDDING_DIM] [--hidden-dim HIDDEN_DIM] [--window-size WINDOW_SIZE]
+                   [--batch-size BATCH_SIZE] [--seed SEED] [--test-size TEST_SIZE]
+
+Run inference on a pre-trained CharRNN model for text generation.
+
+options:
+  -h, --help            show this help message and exit
+  --weights-path WEIGHTS_PATH
+                        Path to the model weights file (.npz). (default: ~/Development/char_rnn/models/char_rnn_shakespeare.npz)
+  --vocab-data-path VOCAB_DATA_PATH
+                        Path to the original text data file used to build the vocabulary. (default: ~/Development/char_rnn/data/raw/input.txt)
+  --embedding-dim EMBEDDING_DIM
+                        Embedding dimension. (default: 128)
+  --hidden-dim HIDDEN_DIM
+                        Hidden layer dimension. (default: 10)
+  --window-size WINDOW_SIZE
+                        Length of the windows passed to the RNN. (default: 100)
+  --batch-size BATCH_SIZE
+                        Number of sequences per batch. (default: 32)
+  --seed SEED           Random seed. (default: 42)
+  --test-size TEST_SIZE
+                        Proportion of the dataset to include in the testing split. (default: 0.2)
+```
+
 ## Generating text (inference)
 
 The `inference.py` script uses a pre-trained model to generate new text.
@@ -189,12 +226,11 @@ The project is structured to separate concerns.
 - **`char_rnn/losses.py`**: Provides the interface for quantifying model prediction errors and deriving the initial gradients for backpropagation.
 - **`char_rnn/models.py`**: Defines the overarching models. It manages end-to-end forward pass, loss calculation, backward pass, and parameter optimization.
 - **`char_rnn/optimizers.py`**: Defines the optimizers responsible for updating model parameters based on pre-computed gradients.
-- **`char_rnn/preprocessing.py`**: Offers utilities for data preparation, e.g, character encoding/decoding, creating batch sequences.
+- **`char_rnn/preprocessing.py`**: Offers utilities for data preparation, e.g, character encoding/decoding, creating sliding windows, batching, shuffling.
 - **`char_rnn/utils.py`**: Centralizes file I/O operations for loading raw data and saving/loading model weights.
 
 # Future enhancements
 
-- **Test after training**: Evaluate the accuracy of next character prediction after training the model.
 - **Advanced recurrent cells**: Implement more sophisticated RNN cells for improved sequence modeling capabilities.
 - **Hyperparameter optimization**: Implement routines for automated hyperparameter tuning to find optimal model configurations.
 
