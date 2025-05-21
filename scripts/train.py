@@ -130,20 +130,30 @@ def main(args: argparse.Namespace):
         "Starting training, num_epochs=%d, batch_size=%d, "
         "window_size=%d.", args.num_epochs, args.batch_size, args.window_size)
 
+    try:
+        X_batches, y_batches = preprocessing.create_mini_batches(
+            X_all=X_all, y_all=y_all, N=args.batch_size, drop_last=True)
+    except (ValueError, RuntimeError) as e:
+        logger.error("Error creating batches: %s.", e, exc_info=True)
+        sys.exit(1)
+
     for epoch in range(1, args.num_epochs + 1):
         epoch_losses: List[float] = []
 
         try:
-            X_batches, y_batches = preprocessing.create_mini_batches(
-                X_all=X_all, y_all=y_all, N=args.batch_size, drop_last=True)
+            X_batches_shuffled, y_batches_shuffled = (
+                preprocessing.shuffle_batches(
+                    X_batches, y_batches,
+                    (args.seed + epoch) if args.seed is not None else None))
         except (ValueError, RuntimeError) as e:
-            logger.error("Error creating batches for epoch %d: %s.",
+            logger.error("Failed to shuffle batches for epoch %d: %s.",
                          epoch,
                          e,
                          exc_info=True)
             sys.exit(1)
 
-        for i, (x, y) in enumerate(zip(X_batches, y_batches)):
+        for i, (x, y) in enumerate(zip(X_batches_shuffled,
+                                       y_batches_shuffled)):
             try:
                 loss = model.train_step(x, y)
                 epoch_losses.append(loss)

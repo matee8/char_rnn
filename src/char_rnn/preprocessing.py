@@ -197,3 +197,39 @@ def create_mini_batches(
         y_batched.shape)
 
     return X_batched, y_batched
+
+
+def shuffle_batches(
+        X_batches: np.ndarray,
+        y_batches: np.ndarray,
+        seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    if X_batches.ndim != 3:
+        raise ValueError(f"Input must be a 3D NumPy array, got "
+                         f"{X_batches.ndim}D array with shape "
+                         f"{X_batches.shape}.")
+
+    if y_batches.ndim != 2:
+        raise ValueError("Output must be a 2D NumPy array, got "
+                         f"{y_batches.ndim}D array with shape "
+                         f"{y_batches.shape}.")
+
+    if X_batches.shape[0] != y_batches.shape[0]:
+        raise ValueError("Number of batches mismatch between inputs ("
+                         f"{X_batches.shape[0]}) and outputs ("
+                         f"{y_batches.shape[0]}).")
+
+    if X_batches.shape[0] == 0:
+        raise ValueError("No batches to shuffle.")
+
+    num_batches = X_batches.shape[0]
+
+    rng = np.random.default_rng(seed)
+    permutation = rng.permutation(num_batches)
+
+    X_batches = X_batches[permutation]
+    y_batches = y_batches[permutation]
+
+    logger.info("Shuffled %d batches. Seed: %s.", num_batches,
+                seed if seed is not None else "None")
+
+    return X_batches, y_batches
