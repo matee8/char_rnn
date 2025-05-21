@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Optimizer(ABC):
 
-    def __init__(self,
-                 eta: float,
-                 name: Optional[str] = None) -> None:
+    def __init__(self, eta: float, name: Optional[str] = None) -> None:
         if eta <= 0:
             raise ValueError("Learning rate must be positive.")
 
@@ -52,8 +50,8 @@ class Adam(Optimizer):
 
         logger.info(
             "%s initialized with eta=%.0e, beta1=%.3f, "
-            "beta2=%.3f, epsilon=%.0e.", self.name, self.eta,
-            self.beta1, self.beta2, self.epsilon)
+            "beta2=%.3f, epsilon=%.0e.", self.name, self.eta, self.beta1,
+            self.beta2, self.epsilon)
 
     def step(self, layers: List[Layer]) -> None:
         if not layers:
@@ -94,7 +92,7 @@ class Adam(Optimizer):
                 v_hat = self.v[layer_id][param_name] / (1 - self.beta2**self.t)
 
                 param_value -= self.eta * m_hat / (np.sqrt(v_hat) +
-                                                             self.epsilon)
+                                                   self.epsilon)
 
                 logger.debug("%s updated param '%s' in layer '%s'.", self.name,
                              param_name, layer.name)

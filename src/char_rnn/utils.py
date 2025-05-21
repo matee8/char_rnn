@@ -18,8 +18,8 @@ def load_data_from_file(path: Path) -> str:
             text_data = f.read()
 
         logger.info(
-            "Successfully loaded data from '%s'. Total characters: %d.",
-            path, len(text_data))
+            "Successfully loaded data from '%s'. Total characters: %d.", path,
+            len(text_data))
 
         return text_data
     except IOError as e:
