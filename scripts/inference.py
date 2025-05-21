@@ -5,6 +5,8 @@ import logging
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from char_rnn import utils
 from char_rnn.models import CharRNN
 from char_rnn.preprocessing import TextVectorizer
@@ -18,6 +20,53 @@ logger = logging.getLogger(__name__)
 DEFAULT_WEIGHTS_PATH = (Path(__file__).parent.parent / "models" /
                         "char_rnn_shakespeare.npz")
 DEFAULT_DATA_PATH = Path(__file__).parent.parent / "data" / "raw" / "input.txt"
+
+
+def generate_text(model: CharRNN,
+                  vectorizer: TextVectorizer,
+                  start_string: str,
+                  n_chars: int,
+                  temperature: float = 1.0) -> str:
+    try:
+        encoded_start_string = vectorizer.encode([start_string])[0]
+    except ValueError as e:
+        raise ValueError("Could not encode start string.") from e
+
+    x_t = encoded_start_string
+
+    h_t = np.zeros((1, model.D_h), dtype=np.float32)
+
+    generated_text = x_t
+
+    for _ in range(n_chars):
+        y_proba, h_t = model.predict(x_t, h_t, return_hidden=True)
+
+        if y_proba is None or h_t is None:
+            raise RuntimeError("Model prediction returned None unexpectedly "
+                               "during text generation.")
+
+        if temperature == 1.0:
+            next_char_id = np.argmax(y_proba, axis=1)[0]
+        else:
+            y_proba_clipped = np.clip(y_proba, 1e-9, 1.0)
+            log_probas = np.log(y_proba_clipped)
+            scaled_log_probas = log_probas / temperature
+
+            exp_scaled_log_probas = (
+                np.exp(scaled_log_probas -
+                       np.max(scaled_log_probas, axis=1, keepdims=True)))
+            final_probas = (
+                exp_scaled_log_probas /
+                np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
+
+            next_char_id = np.random.choice(model.V, p=final_probas[0])
+
+        generated_text = np.append(generated_text, next_char_id)
+        x_t = np.array([next_char_id])
+
+    logger.info("Text generation completed successfully.")
+
+    return vectorizer.decode(generated_text.reshape(1, -1))[0]
 
 
 def main(args: argparse.Namespace):
@@ -55,21 +104,18 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        logger.info(
-            "Starting text generation: Generating %d characterrs, "
-            "beginning with '%s' (temperature=%.2f)...", args.num_to_generate,
-            args.start_string, args.temperature)
-        generated_text = model.generate_sequence(vectorizer=vectorizer,
-                                                 text=args.start_string,
-                                                 n_chars=args.num_to_generate,
-                                                 temperature=args.temperature)
-        logger.info("Text generation completed successfully.")
-
-        print(f"GENERATED TEXT: {generated_text}")
+        generated_text = generate_text(model=model,
+                                       vectorizer=vectorizer,
+                                       start_string=args.start_string,
+                                       n_chars=args.num_to_generate,
+                                       temperature=args.temperature)
     except (ValueError, RuntimeError) as e:
         logger.critical("An error occured during text generation: %s",
                         e,
                         exc_info=True)
+        sys.exit(1)
+
+    print(f"GENERATED TEXT: {generated_text}")
 
 
 def parse_arguments() -> argparse.Namespace:
