@@ -7,23 +7,39 @@ relying on any external deep learning framework.
 
 # Overview
 
-- **Custom RNN implementation**: hand-crafted neural network layers including:
+This implementation features a sequential neural network architecture designed
+for character-level sequence modelling. The model processes input character
+sequences to predict the next character in the sequence.
 
-    - `Embedding` layer for character-to-vector mapping.
-    - `Recurrent` layer (simple RNN cell with `tanh` activation).
-    - `Dense` layer with `softmax` for output probabilites.
+The model's operation can be conceptualized in several stages:
 
-- **Optimization**: `Adam` optimizer implementation.
-- **Loss function**: `SparseCategoricalCrossEntropy` for sequence prediction.
-- **Data preprocessing**:
+-   **Input representation**: Raw character sequences are first transformed
+    into a dense, continuous numerical format via an **embedding layer**.
+-   **Sequential processing**: The embedded sequence is then fed into a
+    **recurrent layer**. This layer is equipped with a hidden state mechanism
+    to iteratively process each element of the sequence. It uses a tanh
+    activation function at each time step.
+-   **Output prediction**: The final hidden state from the recurrent layer is
+    projected through an **output layer** which uses a softmax activation
+    function.
 
-    - `TextVectorizer` for character-to-ID mapping and vice-versa.
-    - Utility for creating sliding window sequences for training.
+**Learning and Evaluation**:
 
-- **Comprehensive Command-Line Interface**:
+-   **Loss function**: During training, the discrepancy between the model's
+    predicted character probabilites and the true next character is
+    quantified using a **sparse categorical cross-entropy loss function**.
+-   **Optimization**: The model's internal parameters are iteratively
+    adjusted to minimize this loss through an **Adam optimization algorithm**.
+    Adam adaptively tunes the learning rates for each parameter, promoting
+    efficient convergence.
+-   **Performance metrics**: The model's predictive capability is evaluated
+    using **accuracy**, which measures the proportion of correctly predicted
+    next characters on a given dataset.
 
-    - **`train.py`**: manages model training, including automatic dataset download, hyperparameter configuration.
-    - **`inference.py`**: runs text generation from pretrained models, with temperature-controlled sampligng.
+This architecture forms a complete pipeline for learning from sequential data,
+from raw text input to character-level probabilistic predictions, and is
+capable of generating coherent text based on the patterns it has learned.
+
 
 # Getting Started
 
@@ -221,7 +237,7 @@ options:
 
 The project is structured to separate concerns.
 
-- **`char_rnn/activation.py`**: Defines the activation functions which could be used in the layers, with their derivatives.
+- **`char_rnn/activations.py`**: Defines the activation functions which could be used in the layers, with their derivatives.
 - **`char_rnn/layers.py`**: Defines the building blocks of the neural network, abstracting operations such as forward and backward passes for layers.
 - **`char_rnn/losses.py`**: Provides the interface for quantifying model prediction errors and deriving the initial gradients for backpropagation.
 - **`char_rnn/models.py`**: Defines the overarching models. It manages end-to-end forward pass, loss calculation, backward pass, and parameter optimization.
@@ -231,6 +247,7 @@ The project is structured to separate concerns.
 
 # Future enhancements
 
+- **Weight initialization methods**: Implement various weight initialization strategies.
 - **Advanced recurrent cells**: Implement more sophisticated RNN cells for improved sequence modeling capabilities.
 - **Hyperparameter optimization**: Implement routines for automated hyperparameter tuning to find optimal model configurations.
 
