@@ -134,9 +134,9 @@ def main(args: argparse.Namespace):
 
     try:
         X_train, _, y_train, _ = preprocessing.train_test_split(
-            X_batches, y_batches, 0.9)
+            X_batches, y_batches, 1 - args.train_size)
         X_train, X_valid, y_train, y_valid = (preprocessing.train_test_split(
-            X_train, y_train))
+            X_train, y_train, args.validation_size))
     except (ValueError, RuntimeError) as e:
         logger.error("Error splitting dataset: %s.", e, exc_info=True)
         sys.exit(1)
@@ -213,6 +213,16 @@ def parse_arguments() -> argparse.Namespace:
                                type=int,
                                default=42,
                                help="Random seed.")
+    training_args.add_argument("--train-size",
+                               type=float,
+                               default=0.8,
+                               help=("Proportion of the dataset to include in "
+                               "the training split."))
+    training_args.add_argument("--validation-size",
+                               type=float,
+                               default=0.2,
+                               help=("Proportion of the training dataset to"
+                                     "include in the validation split."))
 
     output_args = parser.add_argument_group("Output and logging configuration")
     output_args.add_argument("--model-dir",

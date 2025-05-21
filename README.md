@@ -100,8 +100,8 @@ the Tiny Shakespeare dataset if not found locally.
 
 ```plaintext
 usage: train.py [-h] [--data-url DATA_URL] [--data-dir DATA_DIR] [--data-filename DATA_FILENAME] [--embedding-dim EMBEDDING_DIM] [--hidden-dim HIDDEN_DIM] [--learning-rate LEARNING_RATE]
-                [--window-size WINDOW_SIZE] [--batch-size BATCH_SIZE] [--num-epochs NUM_EPOCHS] [--seed SEED] [--model-dir MODEL_DIR] [--model-filename MODEL_FILENAME]
-                [--log-interval LOG_INTERVAL]
+                [--window-size WINDOW_SIZE] [--batch-size BATCH_SIZE] [--num-epochs NUM_EPOCHS] [--seed SEED] [--train-size TRAIN_SIZE] [--validation-size VALIDATION_SIZE]
+                [--model-dir MODEL_DIR] [--model-filename MODEL_FILENAME] [--log-interval LOG_INTERVAL]
 
 Train a Char-RNN model.
 
@@ -129,6 +129,10 @@ Training parameters:
   --num-epochs NUM_EPOCHS
                         Number of training epochs. (default: 10)
   --seed SEED           Random seed. (default: 42)
+  --train-size TRAIN_SIZE
+                        Proportion of the dataset to include in the training split. (default: 0.8)
+  --validation-size VALIDATION_SIZE
+                        Proportion of the training dataset toinclude in the validation split. (default: 0.2)
 
 Output and logging configuration:
   --model-dir MODEL_DIR
@@ -190,7 +194,6 @@ The project is structured to separate concerns.
 
 # Future enhancements
 
-- **Validation during training**: Divide the data into a training and validation set, and log validation loss.
 - **Test after training**: Evaluate the accuracy of next character prediction after training the model.
 - **Advanced recurrent cells**: Implement more sophisticated RNN cells for improved sequence modeling capabilities.
 - **Hyperparameter optimization**: Implement routines for automated hyperparameter tuning to find optimal model configurations.
