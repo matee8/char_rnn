@@ -91,6 +91,56 @@ class TextVectorizer:
         return texts
 
 
+def train_test_split(X: np.ndarray, y: np.ndarray, test_size: float = 0.2) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if X.shape[0] != y.shape[0]:
+        raise ValueError(f"Number of samples mismatch between inputs "
+                         f"({X.shape[0]}) and outputs ({y.shape[0]})")
+
+    if X.ndim < 2:
+        raise ValueError("Inputs must be at least 2D NumPy array, got " 
+                         f"{X.ndim}D array with shape {X.shape}.")
+
+    if y.ndim != 1:
+        raise ValueError(f"Outputs must be a 1D NumPy array, got {y.ndim}D "
+                         f"array with shape {y.shape}")
+
+    if not (0.0 < test_size < 1.0):
+        raise ValueError("Test size must be a float between 0.0 and 1.0.")
+
+    num_samples = X.shape[0]
+    if num_samples == 0:
+        raise ValueError("No samples to split.")
+
+    if num_samples < 2:
+        raise ValueError("Not enough samples to create non-empty train and test"
+                         "sets. Need at least 2 samples.")
+
+    num_test_samples = int(num_samples * test_size)
+    num_train_samples = num_samples - num_test_samples
+
+    if num_test_samples == 0:
+        num_test_samples = 1
+        num_train_samples = num_samples - 1
+        logger.warning("Test size resulted in 0 test samples. Setting "
+                       "test size to 1 sample.")
+
+    if num_train_samples == 0:
+        raise ValueError("Train set will be empty with given test size.")
+
+    indices = np.arange(num_samples)
+
+    test_indices = indices[:num_test_samples]
+    train_indices = indices[num_test_samples:]
+
+    X_train, X_test = X[train_indices], X[test_indices]
+    y_train, y_test = y[train_indices], y[test_indices]
+
+    logger.info("Dataset split into train and test, train_size=%d, test_size=%d",
+                X_train.shape[0], X_test.shape[0])
+
+    return X_train, X_test, y_train, y_test
+
+
 def create_sliding_windows(
         s: np.ndarray,
         L_w: int,
@@ -145,25 +195,25 @@ def create_mini_batches(
                          f"array with shape {y.shape}.")
 
     if X.shape[0] != y.shape[0]:
-        raise ValueError(f"Number of instances mismatch between inputs "
+        raise ValueError(f"Number of samples mismatch between inputs "
                          f"({X.shape[0]}) and labels ({y.shape[0]})")
 
     if X.shape[0] == 0:
-        raise ValueError("No instances provided to create batches from.")
+        raise ValueError("No samples provided to create batches from.")
 
     if N <= 0:
         raise ValueError("Batch size must be positive.")
 
-    num_instances = X.shape[0]
+    num_samples = X.shape[0]
 
     if drop_last:
-        num_total_batches = num_instances // N
+        num_total_batches = num_samples // N
     else:
-        num_total_batches = (num_instances + N - 1) // N
+        num_total_batches = (num_samples + N - 1) // N
 
     if num_total_batches == 0:
         raise ValueError("No batches can be formed with the current batch size"
-                         f"{N} and {num_instances} number of instances.")
+                         f"{N} and {num_samples} number of samples.")
 
     X_batched = np.zeros((num_total_batches, N, X.shape[1]), dtype=X.dtype)
     y_batched = np.zeros((num_total_batches, N), dtype=y.dtype)
