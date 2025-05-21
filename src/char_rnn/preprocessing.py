@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -91,64 +91,83 @@ class TextVectorizer:
         return texts
 
 
-def create_batch_sequences(
+def create_sliding_windows(
         s: np.ndarray,
         L_w: int,
-        N: int,
         shuffle: bool = False,
-        seed: Optional[int] = None,
-        drop_last: bool = False) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
+        seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
     if s.ndim != 1:
         raise ValueError("Input data sequence must be a 1D NumPy array, got "
-                         f"{s.ndim}D array with shape {s.shape}.")
+                         f"{s.ndim}D array with shape {s.shape}")
 
     if L_w < 2:
         raise ValueError("Window size must be at least 2.")
-
-    if N <= 0:
-        raise ValueError("Batch size must be positive.")
 
     num_total_chars = s.shape[0]
     if num_total_chars < L_w:
         raise ValueError("Data is too short for the given window size.")
 
-    L_seq = L_w - 1
+    L_x = L_w - 1
     num_windows = num_total_chars - L_w + 1
 
-    X_all = np.zeros((num_windows, L_seq), dtype=s.dtype)
-    y_all = np.zeros(num_windows, dtype=s.dtype)
+    X = np.zeros((num_windows, L_x), dtype=s.dtype)
+    y = np.zeros(num_windows, dtype=s.dtype)
 
     for i in range(num_windows):
         window = s[i:i + L_w]
-        X_all[i] = window[:-1]
-        y_all[i] = window[-1]
+        X[i] = window[:-1]
+        y[i] = window[-1]
 
-    logger.debug(
-        "Created %d sliding windows. X_all shape: %s, y_all shape: %s.",
-        num_windows, X_all.shape, y_all.shape)
+    logger.info("Created %d sliding windows. X shape: %s, y shape: %s.",
+                num_windows, X.shape, y.shape)
 
     if shuffle:
         rng = np.random.default_rng(seed)
-
         permutation = rng.permutation(num_windows)
-        X_all = X_all[permutation]
-        y_all = y_all[permutation]
+        X = X[permutation]
+        y = y[permutation]
+        logger.debug("Shufled the windows. Seed: %d.", seed)
 
-        logger.debug("Shuffled the windows. Seed: %s.",
-                     seed if seed is not None else "None")
+    return X, y
+
+
+def create_mini_batches(
+        X_all: np.ndarray,
+        y_all: np.ndarray,
+        N: int,
+        drop_last: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+    if X_all.ndim != 2:
+        raise ValueError(f"Input must be a 2D NumPy array, got {X_all.ndim}D "
+                         f"array with shape {X_all.shape}.")
+
+    if y_all.ndim != 1:
+        raise ValueError(f"Input must be a 1D NumPy array, got {y_all.ndim}D "
+                         f"array with shape {y_all.shape}.")
+
+    if X_all.shape[0] != y_all.shape[0]:
+        raise ValueError(f"Number of instances mismatch between inputs "
+                         f"({X_all.shape[0]}) and labels ({y_all.shape[0]})")
+
+    if X_all.shape[0] == 0:
+        raise ValueError("No instances provided to create batches from.")
+
+    if N <= 0:
+        raise ValueError("Batch size must be positive.")
+
+    num_instances = X_all.shape[0]
 
     if drop_last:
-        num_total_batches = num_windows // N
+        num_total_batches = num_instances // N
     else:
-        num_total_batches = (num_windows + N - 1) // N
+        num_total_batches = (num_instances + N - 1) // N
 
     if num_total_batches == 0:
-        raise RuntimeError("No batches to generate.")
+        raise ValueError("No batches can be formed with the current batch size"
+                         f"{N} and {num_instances} number of instances.")
 
-    logger.debug(
-        "Generating %d mini-batches. Target batch_size=%d, "
-        "drop_last=%s. Total windows=%d.", num_total_batches, N, drop_last,
-        num_windows)
+    X_batched = np.zeros((num_total_batches, N, X_all.shape[1]),
+                         dtype=X_all.dtype)
+    y_batched = np.zeros((num_total_batches, N), dtype=y_all.dtype)
 
     for i in range(num_total_batches):
         start = i * N
@@ -157,4 +176,24 @@ def create_batch_sequences(
         X_batch = X_all[start:end]
         y_batch = y_all[start:end]
 
-        yield X_batch, y_batch
+        if X_batch.shape[0] < N and not drop_last:
+            padding_needed = N - X_batch.shape[0]
+            X_batch = np.pad(X_batch, ((0, padding_needed), (0, 0)),
+                             mode="constant",
+                             constant_values=0)
+            y_batch = np.pad(y_batch, ((0, padding_needed)),
+                             mode="constant",
+                             constant_values=0)
+
+            logger.debug("Padded last batch to size %d.", N)
+
+        if X_batch.shape[0] == N:
+            X_batched[i] = X_batch
+            y_batched[i] = y_batch
+
+    logger.info(
+        "Created %d mini-batches, X_batched_shape=%s, "
+        "y_batched_shape=%s.", num_total_batches, X_batched.shape,
+        y_batched.shape)
+
+    return X_batched, y_batched

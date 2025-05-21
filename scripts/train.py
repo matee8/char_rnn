@@ -119,6 +119,13 @@ def main(args: argparse.Namespace):
                      exc_info=True)
         sys.exit(1)
 
+    try:
+        X_all, y_all = preprocessing.create_sliding_windows(
+            s=encoded_text, L_w=args.window_size, shuffle=False)
+    except (ValueError, RuntimeError) as e:
+        logger.error("Error creating sliding windows: %s.", e, exc_info=True)
+        sys.exit(1)
+
     logger.info(
         "Starting training, num_epochs=%d, batch_size=%d, "
         "window_size=%d.", args.num_epochs, args.batch_size, args.window_size)
@@ -127,20 +134,16 @@ def main(args: argparse.Namespace):
         epoch_losses: List[float] = []
 
         try:
-            batch_generator = preprocessing.create_batch_sequences(
-                s=encoded_text,
-                L_w=args.window_size,
-                N=args.batch_size,
-                shuffle=True,
-                seed=args.seed + epoch if args.seed is not None else None,
-                drop_last=True)
+            X_batches, y_batches = preprocessing.create_mini_batches(
+                X_all=X_all, y_all=y_all, N=args.batch_size, drop_last=True)
         except (ValueError, RuntimeError) as e:
-            logger.error("Error creating batch generator: %s.",
+            logger.error("Error creating batches for epoch %d: %s.",
+                         epoch,
                          e,
                          exc_info=True)
             sys.exit(1)
 
-        for i, (x, y) in enumerate(batch_generator):
+        for i, (x, y) in enumerate(zip(X_batches, y_batches)):
             try:
                 loss = model.train_step(x, y)
                 epoch_losses.append(loss)
