@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
+from char_rnn.activations import Activation, Softmax, Tanh
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,7 @@ class Recurrent(Layer):
     def __init__(self,
                  D_in: int,
                  D_h: int,
+                 activation: Optional[Activation] = None,
                  name: Optional[str] = None) -> None:
         super().__init__(name)
 
@@ -135,8 +137,10 @@ class Recurrent(Layer):
         self._last_x: Optional[np.ndarray] = None
         self._last_h_seq: Optional[np.ndarray] = None
 
-        logger.info("%s initialized with D_in=%d, D_h=%d.", self.name,
-                    self.D_in, self.D_h)
+        self._activation = activation or Tanh()
+
+        logger.info("%s initialized with D_in=%d, D_h=%d, activation=%s.",
+                    self.name, self.D_in, self.D_h, self._activation.name)
 
     @property
     def params(self) -> Dict[str, np.ndarray]:
@@ -175,7 +179,7 @@ class Recurrent(Layer):
 
         a_h_t = x_t @ self._W_xh + h_prev @ self._W_hh + self._b_h
 
-        h_t = np.tanh(a_h_t)
+        h_t = self._activation.forward(a_h_t)
 
         return h_t
 
@@ -252,9 +256,7 @@ class Recurrent(Layer):
             h_prev_t = self._last_h_seq[:, t, :]
             x_t = self._last_x[:, t, :]
 
-            dtanh_da_h_t = 1 - h_t**2
-
-            dL_da_h_t = dL_dh_t * dtanh_da_h_t
+            dL_da_h_t = self._activation.backward(dL_dh_t, h_t)
 
             self._dL_dW_xh += x_t.T @ dL_da_h_t
             self._dL_dW_hh += h_prev_t.T @ dL_da_h_t
@@ -275,6 +277,7 @@ class Dense(Layer):
     def __init__(self,
                  D_in: int,
                  D_out: int,
+                 activation: Optional[Activation] = None,
                  name: Optional[str] = None) -> None:
         super().__init__(name)
 
@@ -297,8 +300,10 @@ class Dense(Layer):
 
         self._last_y_pred: Optional[np.ndarray] = None
 
-        logger.info("%s initialized with D_in=%d, D_out=%d.", self.name,
-                    self.D_in, self.D_out)
+        self._activation = activation or Softmax()
+
+        logger.info("%s initialized with D_in=%d, D_out=%d, activation=%s.",
+                    self.name, self.D_in, self.D_out, self._activation.name)
 
     @property
     def params(self) -> Dict[str, np.ndarray]:
@@ -321,7 +326,7 @@ class Dense(Layer):
         self._last_x = x
 
         z = x @ self._W + self._b
-        p = self._softmax(z)
+        p = self._activation.forward(z)
 
         self._last_y_pred = p
 
@@ -343,8 +348,7 @@ class Dense(Layer):
             raise ValueError("Output gradients shape mismatch. Expected "
                              f"{self._last_y_pred.shape}, got {dL_dy.shape}.")
 
-        s = np.sum(dL_dy * self._last_y_pred, axis=1, keepdims=True)
-        dL_dz = self._last_y_pred * (dL_dy - s)
+        dL_dz = self._activation.backward(dL_dy, self._last_y_pred)
 
         self._dL_dW = self._last_x.T @ dL_dz
         self._dL_db = np.sum(dL_dz, axis=0, keepdims=True)
@@ -355,8 +359,3 @@ class Dense(Layer):
                      self.name, dL_dy.shape, dL_dx.shape)
 
         return dL_dx
-
-    def _softmax(self, z: np.ndarray) -> np.ndarray:
-        z_stabilized = z - np.max(z, axis=1, keepdims=True)
-        exp_z = np.exp(z_stabilized)
-        return exp_z / np.sum(exp_z, axis=1, keepdims=True)

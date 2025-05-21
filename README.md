@@ -77,6 +77,7 @@ relying on any external deep learning framework.
 ├── src/
 │   └── char_rnn/
 │       ├── __init__.py
+│       ├── activations.py    # Activation function implementations
 │       ├── layers.py         # Neural network layer implementations
 │       ├── losses.py         # Loss function implementations
 │       ├── models.py         # CharRNN model architecture
@@ -179,6 +180,7 @@ options:
 
 The project is structured to separate concerns.
 
+- **`char_rnn/activation.py`**: Defines the activation functions which could be used in the layers, with their derivatives.
 - **`char_rnn/layers.py`**: Defines the building blocks of the neural network, abstracting operations such as forward and backward passes for layers.
 - **`char_rnn/losses.py`**: Provides the interface for quantifying model prediction errors and deriving the initial gradients for backpropagation.
 - **`char_rnn/models.py`**: Defines the overarching models. It manages end-to-end forward pass, loss calculation, backward pass, and parameter optimization.
@@ -190,7 +192,6 @@ The project is structured to separate concerns.
 
 - **Validation during training**: Divide the data into a training and validation set, and log validation loss.
 - **Test after training**: Evaluate the accuracy of next character prediction after training the model.
-- **Module for activation functions**: Implement a module for collecting all activation functions and pass them to the layers when instantiated.
 - **Advanced recurrent cells**: Implement more sophisticated RNN cells for improved sequence modeling capabilities.
 - **Hyperparameter optimization**: Implement routines for automated hyperparameter tuning to find optimal model configurations.
 
