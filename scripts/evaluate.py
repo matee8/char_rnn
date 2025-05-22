@@ -76,24 +76,15 @@ def main(args: argparse.Namespace):
         utils.load_model_weights(model, args.weights_path)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error("Failed to initialize model or load weights: %s.",
-<<<<<<< HEAD
                      e,
                      exc_info=True)
-=======
-                        e,
-                        exc_info=True)
->>>>>>> 376cb428e9d58b6dab582573711e2b7ee1a43654
         sys.exit(1)
 
     logger.info("Starting model evaluation on the test set.")
     try:
         accuracy = model.evaluate(X_test, y_test)
         logger.info("Model evaluation complete, test accuracy: %.4f", accuracy)
-<<<<<<< HEAD
     except Exception as e: # pylint: disable=broad-exception-caught
-=======
-    except Exception as e:
->>>>>>> 376cb428e9d58b6dab582573711e2b7ee1a43654
         logger.error("An error occured during model evaluation: %s.",
                      e,
                      exc_info=True)
@@ -124,7 +115,6 @@ def parse_arguments() -> argparse.Namespace:
                         default=10,
                         help="Hidden layer dimension.")
     parser.add_argument("--window-size",
-<<<<<<< HEAD
                         type=int,
                         default=100,
                         help="Length of the windows passed to the RNN.")
@@ -138,25 +128,6 @@ def parse_arguments() -> argparse.Namespace:
                         default=0.2,
                         help=("Proportion of the dataset to include in "
                               "the testing split."))
-=======
-                               type=int,
-                               default=100,
-                               help="Length of the windows passed to the RNN.")
-    parser.add_argument("--batch-size",
-                               type=int,
-                               default=32,
-                               help="Number of sequences per batch.")
-    parser.add_argument("--seed",
-                               type=int,
-                               default=42,
-                               help="Random seed.")
-    parser.add_argument("--test-size",
-                               type=float,
-                               default=0.2,
-                               help=("Proportion of the dataset to include in "
-                               "the testing split."))
->>>>>>> 376cb428e9d58b6dab582573711e2b7ee1a43654
-
     args = parser.parse_args()
 
     if not args.weights_path.is_file():
@@ -173,13 +144,8 @@ def parse_arguments() -> argparse.Namespace:
         raise argparse.ArgumentError(args.batch_size, "must be positive.")
 
     if not 0.0 < args.test_size < 1.0:
-<<<<<<< HEAD
         raise argparse.ArgumentError(args.test_size,
                                      "must be between 0.0 and 1.0")
-=======
-        raise argparse.ArgumentError(args.test_size, "must be between 0.0 and 1.0")
-
->>>>>>> 376cb428e9d58b6dab582573711e2b7ee1a43654
 
     return args
 

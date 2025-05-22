@@ -147,14 +147,8 @@ def train_test_split(
     return X_train, X_test, y_train, y_test
 
 
-<<<<<<< HEAD
 def create_sliding_windows(s: np.ndarray,
                            L_w: int) -> Tuple[np.ndarray, np.ndarray]:
-=======
-def create_sliding_windows(
-        s: np.ndarray,
-        L_w: int) -> Tuple[np.ndarray, np.ndarray]:
->>>>>>> 376cb428e9d58b6dab582573711e2b7ee1a43654
     if s.ndim != 1:
         raise ValueError("Input data sequence must be a 1D NumPy array, got "
                          f"{s.ndim}D array with shape {s.shape}")
