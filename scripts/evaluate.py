@@ -84,7 +84,7 @@ def main(args: argparse.Namespace):
     try:
         accuracy = model.evaluate(X_test, y_test)
         logger.info("Model evaluation complete, test accuracy: %.4f", accuracy)
-    except Exception as e: # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("An error occured during model evaluation: %s.",
                      e,
                      exc_info=True)

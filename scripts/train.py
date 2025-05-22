@@ -217,7 +217,7 @@ def parse_arguments() -> argparse.Namespace:
                                type=float,
                                default=0.8,
                                help=("Proportion of the dataset to include in "
-                               "the training split."))
+                                     "the training split."))
     training_args.add_argument("--validation-size",
                                type=float,
                                default=0.2,
@@ -264,10 +264,12 @@ def parse_arguments() -> argparse.Namespace:
         raise argparse.ArgumentError(args.log_interval, "must be positive.")
 
     if not 0.0 < args.train_size < 1.0:
-        raise argparse.ArgumentError(args.train_size, "must be between 0.0 and 1.0")
+        raise argparse.ArgumentError(args.train_size,
+                                     "must be between 0.0 and 1.0")
 
     if not 0.0 < args.validation_size < 1.0:
-        raise argparse.ArgumentError(args.validation_size, "must be between 0.0 and 1.0")
+        raise argparse.ArgumentError(args.validation_size,
+                                     "must be between 0.0 and 1.0")
 
     return args
 

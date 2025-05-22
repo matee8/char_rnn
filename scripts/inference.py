@@ -61,7 +61,7 @@ def generate_text(model: CharRNN,
 
             next_char = np.random.choice(model.V, p=final_probas[0])
 
-        generated_text += next_char
+        generated_text = np.append(generated_text, next_char)
         x_t = np.array([next_char])
 
     logger.info("Text generation completed successfully.")
@@ -99,8 +99,8 @@ def main(args: argparse.Namespace):
         utils.load_model_weights(model, args.weights_path)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error("Failed to initialize model or load weights: %s.",
-                        e,
-                        exc_info=True)
+                     e,
+                     exc_info=True)
         sys.exit(1)
 
     try:
@@ -111,8 +111,8 @@ def main(args: argparse.Namespace):
                                        temperature=args.temperature)
     except (ValueError, RuntimeError) as e:
         logger.error("An error occured during text generation: %s",
-                        e,
-                        exc_info=True)
+                     e,
+                     exc_info=True)
         sys.exit(1)
 
     print(f"GENERATED TEXT: {generated_text}")
@@ -161,7 +161,6 @@ def parse_arguments() -> argparse.Namespace:
 
     if not args.vocab_data_path.is_file():
         raise argparse.ArgumentError(args.weights_path, "file not found.")
-
 
     if args.temperature <= 0:
         raise argparse.ArgumentError(args.temperature,
