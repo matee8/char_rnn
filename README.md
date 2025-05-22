@@ -233,23 +233,34 @@ options:
                         Temperature for sampling. (default: 1.0)
 ```
 
-# Code structure
+# Code Structure
 
 The project is structured to separate concerns.
 
-- **`char_rnn/activations.py`**: Defines the activation functions which could be used in the layers, with their derivatives.
-- **`char_rnn/layers.py`**: Defines the building blocks of the neural network, abstracting operations such as forward and backward passes for layers.
-- **`char_rnn/losses.py`**: Provides the interface for quantifying model prediction errors and deriving the initial gradients for backpropagation.
-- **`char_rnn/models.py`**: Defines the overarching models. It manages end-to-end forward pass, loss calculation, backward pass, and parameter optimization.
-- **`char_rnn/optimizers.py`**: Defines the optimizers responsible for updating model parameters based on pre-computed gradients.
-- **`char_rnn/preprocessing.py`**: Offers utilities for data preparation, e.g, character encoding/decoding, creating sliding windows, batching, shuffling.
-- **`char_rnn/utils.py`**: Centralizes file I/O operations for loading raw data and saving/loading model weights.
+-   **`char_rnn/activations.py`**: Defines the activation functions which could
+    be used in the layers, with their derivatives.
+-   **`char_rnn/layers.py`**: Defines the building blocks of the neural network,
+    abstracting operations such as forward and backward passes for layers.
+-   **`char_rnn/losses.py`**: Provides the interface for quantifying model
+    prediction errors and deriving the initial gradients for backpropagation.
+-   **`char_rnn/models.py`**: Defines the overarching models. It manages
+    end-to-end forward pass, loss calculation, backward pass, and parameter
+    optimization.
+-   **`char_rnn/optimizers.py`**: Defines the optimizers responsible for
+    updating model parameters based on pre-computed gradients.
+-   **`char_rnn/preprocessing.py`**: Offers utilities for data preparation, e.g,
+    character encoding/decoding, creating sliding windows, batching, shuffling.
+-   **`char_rnn/utils.py`**: Centralizes file I/O operations for loading raw
+    data and saving/loading model weights.
 
-# Future enhancements
+# Future Enhancements
 
-- **Weight initialization methods**: Implement various weight initialization strategies.
-- **Advanced recurrent cells**: Implement more sophisticated RNN cells for improved sequence modeling capabilities.
-- **Hyperparameter optimization**: Implement routines for automated hyperparameter tuning to find optimal model configurations.
+-   **Weight initialization methods**: Implement various weight initialization
+    strategies.
+-   **Advanced recurrent cells**: Implement more sophisticated RNN cells for
+    improved sequence modeling capabilities.
+-   **Hyperparameter optimization**: Implement routines for automated
+    hyperparameter tuning to find optimal model configurations.
 
 # License
 
