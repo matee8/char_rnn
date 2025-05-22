@@ -50,21 +50,21 @@ capable of generating coherent text based on the patterns it has learned.
 
 ## Installation
 
-1. **Clone the repository**
+1. Clone the repository.
 
     ```bash
     git clone https://github.com/matee8/char_rnn.git
     cd char_rnn
     ```
 
-2. **Create a virtual environment (optional but recommended)**:
+2. Create a virtual environment (optional but recommended).
 
     ```bash
     python3 -m venv .venv
     source .venv/bin/activate # or, on Windows: .\.venv\Scripts\activate
     ```
 
-3. **Install the project**:
+3. Install the project.
 
     The project includes a `setup.py` file, enabling installation in editable
     mode. This is the recommended approach for development, as source code
