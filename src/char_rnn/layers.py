@@ -118,7 +118,7 @@ class Recurrent(Layer):
     def __init__(self,
                  D_in: int,
                  D_h: int,
-                 activation: Optional[Activation] = None,
+                 activation: Activation = Tanh(),
                  W_xh_initializer: Initializer = GlorotUniform(),
                  W_hh_initializer: Initializer = Orthogonal(),
                  b_h_initializer: Initializer = Zeros(),
@@ -138,6 +138,7 @@ class Recurrent(Layer):
         self.W_xh_initializer = W_xh_initializer
         self.W_hh_initializer = W_hh_initializer
         self.b_h_initializer = b_h_initializer
+        self.activation = activation
 
         self._W_xh = self.W_xh_initializer.initialize((D_in, D_h))
         self._W_hh = self.W_hh_initializer.initialize((D_h, D_h))
@@ -150,13 +151,11 @@ class Recurrent(Layer):
         self._last_x: Optional[np.ndarray] = None
         self._last_h_seq: Optional[np.ndarray] = None
 
-        self._activation = activation or Tanh()
-
         logger.info(
             "%s initialized with D_in=%d, D_h=%d, activation=%s, "
             "W_xh_initializer=%s, W_hh_initializer=%s, "
             "b_h_initializer=%s.", self.name, self.D_in, self.D_h,
-            self._activation.name, self.W_xh_initializer.name,
+            self.activation.name, self.W_xh_initializer.name,
             self.W_hh_initializer.name, self.b_h_initializer.name)
 
     @property
@@ -196,7 +195,7 @@ class Recurrent(Layer):
 
         a_h_t = x_t @ self._W_xh + h_prev @ self._W_hh + self._b_h
 
-        h_t = self._activation.forward(a_h_t)
+        h_t = self.activation.forward(a_h_t)
 
         return h_t
 
@@ -273,7 +272,7 @@ class Recurrent(Layer):
             h_prev_t = self._last_h_seq[:, t, :]
             x_t = self._last_x[:, t, :]
 
-            dL_da_h_t = self._activation.backward(dL_dh_t, h_t)
+            dL_da_h_t = self.activation.backward(dL_dh_t, h_t)
 
             self._dL_dW_xh += x_t.T @ dL_da_h_t
             self._dL_dW_hh += h_prev_t.T @ dL_da_h_t
@@ -294,7 +293,7 @@ class Dense(Layer):
     def __init__(self,
                  D_in: int,
                  D_out: int,
-                 activation: Optional[Activation] = None,
+                 activation: Activation = Softmax(),
                  W_initializer: Initializer = GlorotUniform(),
                  b_initializer: Initializer = Zeros(),
                  name: Optional[str] = None) -> None:
@@ -312,6 +311,7 @@ class Dense(Layer):
         self.D_out = D_out
         self.W_initializer = W_initializer
         self.b_initializer = b_initializer
+        self.activation = activation
 
         self._W = self.W_initializer.initialize((D_in, D_out))
         self._b = self.b_initializer.initialize((1, D_out))
@@ -321,12 +321,10 @@ class Dense(Layer):
 
         self._last_y_pred: Optional[np.ndarray] = None
 
-        self._activation = activation or Softmax()
-
         logger.info(
             "%s initialized with D_in=%d, D_out=%d, activation=%s, "
             "W_initializer=%s, b_initializer=%s.", self.name, self.D_in,
-            self.D_out, self._activation.name, self.W_initializer.name,
+            self.D_out, self.activation.name, self.W_initializer.name,
             self.b_initializer.name)
 
     @property
@@ -350,7 +348,7 @@ class Dense(Layer):
         self._last_x = x
 
         z = x @ self._W + self._b
-        p = self._activation.forward(z)
+        p = self.activation.forward(z)
 
         self._last_y_pred = p
 
@@ -372,7 +370,7 @@ class Dense(Layer):
             raise ValueError("Output gradients shape mismatch. Expected "
                              f"{self._last_y_pred.shape}, got {dL_dy.shape}.")
 
-        dL_dz = self._activation.backward(dL_dy, self._last_y_pred)
+        dL_dz = self.activation.backward(dL_dy, self._last_y_pred)
 
         self._dL_dW = self._last_x.T @ dL_dz
         self._dL_db = np.sum(dL_dz, axis=0, keepdims=True)
