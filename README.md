@@ -13,17 +13,18 @@ sequences to predict the next character in the sequence.
 
 The model's operation can be conceptualized in several stages:
 
--   **Weights Initialization**: Parameters (weights) within the network layers
-    are initialized using specific strategies prior to training.
 -   **Input representation**: Raw character sequences are first transformed
-    into a dense, continuous numerical format via an **embedding layer**.
+    into a dense, continuous numerical format via an **embedding layer**. The
+    weights for this layer are initialized using a random uniform distribution.
 -   **Sequential processing**: The embedded sequence is then fed into a
     **recurrent layer**. This layer is equipped with a hidden state mechanism
     to iteratively process each element of the sequence. It uses a tanh
-    activation function at each time step.
+    activation function at each time step. For the input-to-hidden weights, a
+    Glorot Uniform initializer, and for the hidden-to-hidden weights, an
+    Orthogonal initializer is used.
 -   **Output prediction**: The final hidden state from the recurrent layer is
     projected through an **output layer** which uses a softmax activation
-    function.
+    function. Uses the Glorot Uniform initializer.
 
 **Learning and Evaluation**:
 
@@ -37,11 +38,47 @@ The model's operation can be conceptualized in several stages:
 -   **Performance metrics**: The model's predictive capability is evaluated
     using **accuracy**, which measures the proportion of correctly predicted
     next characters on a given dataset.
+-   **Statefulness**: The model processes mini-batches independently and is not
+    stateful across mini-batches, the hidden state is typically initialized to
+    zeros for each new batch.
+
+**Text generation**:
+
+Once trained, the model can generate new text sequences. The process involves:
+
+-   **Initialization**: Text generation starts with a start string provided by
+    the user. This string is encoded into its numerical representation. The
+    initial hidden state of the recurrent layer is typically set to zeros.
+-   **Iterative Precition**:
+
+    1.  The model predicts the probability distribution for the next character
+        based on the current input character (or sequence) and the current
+        hidden state.
+    2.  The hidden state is updated and carried over to the next step, making
+        the generation process stateful.
+    3.  A new character is sampled from the predicted probability distribution.
+        The temperature parameter controls the randomness of this sampling:
+
+        -   Low temperature (e.g., < 1.0) makes the output more deterministic
+            and focused, often picking the most likely characters.
+        -   Temperature of 1.0 means sampling according to the model's raw
+            probabilities.
+        -   High temperature (e.g., 1.0 <) introduces more randomness, leading
+            to more surprising or creative (but potentially less coherent) text.
+
+    4.  The newly generated character becomes the input for the next prediction
+        step.
+
+-   **Continuation**: This iterative process is repeated for a desired number of
+    characters.
+-   **Output**: The sequence of generated character IDs is decoded back into
+    human-readable text.
 
 This architecture forms a complete pipeline for learning from sequential data,
 from raw text input to character-level probabilistic predictions, and is
 capable of generating coherent text based on the patterns it has learned.
 
+The model isn't stateful.
 
 # Getting Started
 
