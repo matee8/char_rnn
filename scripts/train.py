@@ -14,7 +14,7 @@ import requests
 from char_rnn import preprocessing, utils
 from char_rnn.losses import SparseCategoricalCrossEntropy
 from char_rnn.models import CharRNN
-from char_rnn.optimizers import Adam
+from char_rnn.optimizers import Nadam
 from char_rnn.preprocessing import TextVectorizer
 
 logging.basicConfig(level=logging.INFO,
@@ -109,7 +109,7 @@ def main(args: argparse.Namespace):
         model = CharRNN(V=vectorizer.vocabulary_size,
                         D_e=args.embedding_dim,
                         D_h=args.hidden_dim)
-        optimizer = Adam(eta=args.learning_rate)
+        optimizer = Nadam(eta=args.learning_rate)
         loss_fn = SparseCategoricalCrossEntropy()
         model.compile(optimizer, loss_fn)
     except ValueError as e:
