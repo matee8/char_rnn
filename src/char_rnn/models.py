@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 from char_rnn import preprocessing
-from char_rnn.layers import Dense, Embedding, Layer, Recurrent
+from char_rnn.layers import Dense, Embedding, GRU, Layer
 from char_rnn.losses import Loss
 from char_rnn.optimizers import Optimizer
 
@@ -157,11 +157,11 @@ class CharRNN(Model):
         self.D_h = D_h
 
         self._embedding_layer = Embedding(V=self.V, D_e=self.D_e)
-        self._recurrent_layer = Recurrent(D_in=self.D_e, D_h=self.D_h)
+        self._gru_layer = GRU(D_in=self.D_e, D_h=self.D_h)
         self._dense_layer = Dense(D_in=self.D_h, D_out=self.V)
 
         self.trainable_layers = [
-            self._embedding_layer, self._recurrent_layer, self._dense_layer
+            self._embedding_layer, self._gru_layer, self._dense_layer
         ]
 
         self._h_t_final: Optional[np.ndarray] = None
@@ -229,7 +229,7 @@ class CharRNN(Model):
                  **kwargs) -> np.ndarray:
         y_emb = self._embedding_layer.forward(x)
 
-        h_t_final = self._recurrent_layer.forward(y_emb, h_0=h_0)
+        h_t_final = self._gru_layer.forward(y_emb, h_0=h_0)
         self._h_t_final = h_t_final
 
         return self._dense_layer.forward(h_t_final)
@@ -241,7 +241,7 @@ class CharRNN(Model):
             raise RuntimeError(
                 "Dense layer backward pass returned None unexpectedly.")
 
-        dL_dy_emb = self._recurrent_layer.backward(dL_dh_t_final)
+        dL_dy_emb = self._gru_layer.backward(dL_dh_t_final)
         if dL_dy_emb is None:
             raise RuntimeError(
                 "Recurrent layer backward pass returned None unexpectedly.")

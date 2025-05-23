@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
-from char_rnn.activations import Activation, Softmax, Tanh
+from char_rnn.activations import Activation, Sigmoid, Softmax, Tanh
 from char_rnn.initializers import GlorotUniform, Initializer, Orthogonal, RandomUniform, Zeros
 import numpy as np
 
@@ -286,6 +286,281 @@ class Recurrent(Layer):
         h_t = self.activation.forward(a_h_t)
 
         return h_t
+
+
+class GRU(Layer):
+
+    def __init__(self,
+                 D_in: int,
+                 D_h: int,
+                 candidate_activation: Activation = Tanh(),
+                 gate_activation: Activation = Sigmoid(),
+                 W_xz_initializer: Initializer = GlorotUniform(),
+                 W_xr_initializer: Initializer = GlorotUniform(),
+                 W_xh_initializer: Initializer = GlorotUniform(),
+                 W_hz_initializer: Initializer = Orthogonal(),
+                 W_hr_initializer: Initializer = Orthogonal(),
+                 W_hh_initializer: Initializer = Orthogonal(),
+                 b_z_initializer: Initializer = Zeros(),
+                 b_r_initializer: Initializer = Zeros(),
+                 b_h_initializer: Initializer = Zeros(),
+                 name: Optional[str] = None) -> None:
+        super().__init__(name)
+
+        if D_in <= 0:
+            raise ValueError(
+                f"Input dimension (D_in) must be positive, got {D_in}.")
+
+        if D_h <= 0:
+            raise ValueError(
+                f"Hidden dimension (D_h) must be positive, got {D_h}.")
+
+        self.D_in = D_in
+        self.D_h = D_h
+        self.candidate_activation = candidate_activation
+        self.gate_activation = gate_activation
+        self.W_xz_initializer = W_xz_initializer
+        self.W_xr_initializer = W_xr_initializer
+        self.W_xh_initializer = W_xh_initializer
+        self.W_hz_initializer = W_hz_initializer
+        self.W_hr_initializer = W_hr_initializer
+        self.W_hh_initializer = W_hh_initializer
+        self.b_z_initializer = b_z_initializer
+        self.b_r_initializer = b_r_initializer
+        self.b_h_initializer = b_h_initializer
+
+        self._W_xz = self.W_xz_initializer.initialize((D_in, D_h))
+        self._W_hz = self.W_hz_initializer.initialize((D_h, D_h))
+        self._b_z = self.b_z_initializer.initialize((1, D_h))
+
+        self._W_xr = self.W_xr_initializer.initialize((D_in, D_h))
+        self._W_hr = self.W_hr_initializer.initialize((D_h, D_h))
+        self._b_r = self.b_r_initializer.initialize((1, D_h))
+
+        self._W_xh = self.W_xh_initializer.initialize((D_in, D_h))
+        self._W_hh = self.W_hh_initializer.initialize((D_h, D_h))
+        self._b_h = self.b_h_initializer.initialize((1, D_h))
+
+        self._dL_dW_xz = np.zeros_like(self._W_xz)
+        self._dL_dW_hz = np.zeros_like(self._W_hz)
+        self._dL_db_z = np.zeros_like(self._b_z)
+        self._dL_dW_xr = np.zeros_like(self._W_xr)
+        self._dL_dW_hr = np.zeros_like(self._W_hr)
+        self._dL_db_r = np.zeros_like(self._b_r)
+        self._dL_dW_xh = np.zeros_like(self._W_xh)
+        self._dL_dW_hh = np.zeros_like(self._W_hh)
+        self._dL_db_h = np.zeros_like(self._b_h)
+
+        self._last_x: Optional[np.ndarray] = None
+        self._last_h_seq: Optional[np.ndarray] = None
+        self._last_z_seq: Optional[np.ndarray] = None
+        self._last_r_seq: Optional[np.ndarray] = None
+        self._last_h_tilde_seq: Optional[np.ndarray] = None
+
+        logger.info(
+            "%s initialized with D_in=%d, D_h=%d, candidate_activation=%s, "
+            "gate_activation=%s, W_xz_initializer=%s, W_xr_initializer=%s, "
+            "W_xh_initializer=%s, W_hz_initializer=%s, W_hr_initializer=%s, "
+            "W_hh_initializer=%s, b_z_initializer=%s, b_r_initializer=%s, "
+            "b_h_initializer=%s.", self.name, self.D_in, self.D_h,
+            self.candidate_activation.name, self.gate_activation.name,
+            self.W_xz_initializer.name, self.W_xr_initializer.name,
+            self.W_xh_initializer.name, self.W_hz_initializer.name,
+            self.W_hr_initializer.name, self.W_hh_initializer.name,
+            self.b_z_initializer.name, self.b_r_initializer.name,
+            self.b_h_initializer.name)
+
+    @property
+    def params(self) -> Dict[str, np.ndarray]:
+        return {
+            "W_xz": self._W_xz,
+            "W_xr": self._W_xr,
+            "W_xh": self._W_xh,
+            "W_hz": self._W_hz,
+            "W_hr": self._W_hr,
+            "W_hh": self._W_hh,
+            "b_z": self._b_z,
+            "b_r": self._b_r,
+            "b_h": self._b_h,
+        }
+
+    @property
+    def grads(self) -> Dict[str, np.ndarray]:
+        return {
+            "W_xz": self._dL_dW_xz,
+            "W_xr": self._dL_dW_xr,
+            "W_xh": self._dL_dW_xh,
+            "W_hz": self._dL_dW_hz,
+            "W_hr": self._dL_dW_hr,
+            "W_hh": self._dL_dW_hh,
+            "b_z": self._dL_db_z,
+            "b_r": self._dL_db_r,
+            "b_h": self._dL_db_h,
+        }
+
+    def forward(self,
+                x: np.ndarray,
+                h_0: Optional[np.ndarray] = None,
+                **kwargs) -> np.ndarray:
+        if x.ndim != 3:
+            raise ValueError("Input shape mismatch. Expected 3D NumPy array, "
+                             f"got {x.ndim}D array with shape {x.shape}.")
+
+        N, T_seq, input_dim = x.shape
+
+        if input_dim != self.D_in:
+            raise ValueError(
+                "Input feature dimension mismatch. Expected shape[-1] to be "
+                f"{self.D_in}, got {x.shape[-1]} from shape {x.shape}.")
+
+        expected_h_0_shape = (N, self.D_h)
+        if h_0 is None:
+            h_t = np.zeros(expected_h_0_shape)
+        else:
+            if h_0.shape != expected_h_0_shape:
+                raise ValueError("Initial hidden state shape mismatch. "
+                                 f"Expected {expected_h_0_shape}, got "
+                                 f"{h_0.shape}.")
+            h_t = h_0
+
+        self._last_x = x
+        self._last_h_seq = np.zeros((N, T_seq + 1, self.D_h), dtype=x.dtype)
+        self._last_z_seq = np.zeros((N, T_seq, self.D_h), dtype=x.dtype)
+        self._last_r_seq = np.zeros((N, T_seq, self.D_h), dtype=x.dtype)
+        self._last_h_tilde_seq = np.zeros((N, T_seq, self.D_h), dtype=x.dtype)
+
+        if (self._last_h_seq is None or self._last_z_seq is None
+                or self._last_r_seq is None or self._last_h_tilde_seq is None):
+            raise ValueError(
+                "Failed to initialize cache sequences for backward pass.")
+
+        self._last_h_seq[:, 0, :] = h_t
+
+        for t in range(T_seq):
+            x_t = x[:, t, :]
+            h_t, z_t, r_t, h_tilde_t = self.forward_step(x_t, h_t)
+            self._last_h_seq[:, t + 1, :] = h_t
+            self._last_z_seq[:, t, :] = z_t
+            self._last_r_seq[:, t, :] = r_t
+            self._last_h_tilde_seq[:, t, :] = h_tilde_t
+
+        logger.debug("%s forward pass: x_shape=%s, final_h_shape=%s.",
+                     self.name, x.shape, h_t.shape)
+
+        return h_t
+
+    def backward(self, dL_dy: np.ndarray) -> Optional[np.ndarray]:
+        if (self._last_x is None or self._last_h_seq is None
+                or self._last_z_seq is None or self._last_r_seq is None
+                or self._last_h_tilde_seq is None):
+            raise RuntimeError("Must call forward() before backward().")
+
+        if dL_dy.ndim != 2:
+            raise ValueError(
+                "Output gradient shape mismatch. Expected 2D NumPy array, got "
+                f"{dL_dy.ndim}D array with shape {dL_dy.shape}.")
+
+        N, T_seq, _ = self._last_x.shape
+
+        expected_dL_dy_shape = (N, self.D_h)
+        if dL_dy.shape != expected_dL_dy_shape:
+            raise ValueError("Output gradient shape mismatch. Expected "
+                             f"{expected_dL_dy_shape}, got {dL_dy.shape}.")
+
+        self._dL_dW_xz.fill(0.0)
+        self._dL_dW_hz.fill(0.0)
+        self._dL_db_z.fill(0.0)
+        self._dL_dW_xr.fill(0.0)
+        self._dL_dW_hr.fill(0.0)
+        self._dL_db_r.fill(0.0)
+        self._dL_dW_xh.fill(0.0)
+        self._dL_dW_hh.fill(0.0)
+        self._dL_db_h.fill(0.0)
+
+        dL_dx_seq = np.zeros_like(self._last_x)
+        dL_dh_next_t = dL_dy.copy()
+
+        for t in reversed(range(T_seq)):
+            h_prev_t = self._last_h_seq[:, t, :]
+            x_t = self._last_x[:, t, :]
+            z_t = self._last_z_seq[:, t, :]
+            r_t = self._last_r_seq[:, t, :]
+            h_tilde_t = self._last_h_tilde_seq[:, t, :]
+
+            dL_dz_t = dL_dh_next_t * (h_tilde_t - h_prev_t)
+            dL_da_z_t = self.gate_activation.backward(dL_dz_t, z_t)
+
+            dL_dh_tilde_t = dL_dh_next_t * z_t
+            dL_da_h_tilde_t = self.candidate_activation.backward(
+                dL_dh_tilde_t, h_tilde_t)
+
+            dL_dr_t = dL_da_h_tilde_t @ self._W_hh.T * h_prev_t
+            dL_da_r_t = self.gate_activation.backward(dL_dr_t, r_t)
+
+            self._dL_dW_xz += x_t.T @ dL_da_z_t
+            self._dL_dW_hz += h_prev_t.T @ dL_da_z_t
+            self._dL_db_z += np.sum(dL_da_z_t, axis=0, keepdims=True)
+
+            self._dL_dW_xr += x_t.T @ dL_da_r_t
+            self._dL_dW_hr += h_prev_t.T @ dL_da_r_t
+            self._dL_db_r += np.sum(dL_da_r_t, axis=0, keepdims=True)
+
+            self._dL_dW_xh += x_t.T @ dL_da_h_tilde_t
+            self._dL_dW_hh += (r_t * h_prev_t).T @ dL_da_h_tilde_t
+            self._dL_db_h += np.sum(dL_da_h_tilde_t, axis=0, keepdims=True)
+
+            dL_dx_seq[:, t, :] = (dL_da_z_t @ self._W_xz.T +
+                                  dL_da_r_t @ self._W_xr.T +
+                                  dL_da_h_tilde_t @ self._W_xh.T)
+
+            dL_dh_next_t = (dL_dh_next_t * (1 - z_t) +
+                            dL_da_z_t @ self._W_hz.T +
+                            dL_da_r_t @ self._W_hr.T +
+                            dL_da_h_tilde_t @ self._W_hh.T * r_t)
+
+        logger.debug("%s backward pass: dL_dy_shape=%s, dL_dX_seq_shape=%s.",
+                     self.name, dL_dy.shape, dL_dx_seq.shape)
+
+        return dL_dx_seq
+
+    def forward_step(
+        self, x_t: np.ndarray, h_prev: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if x_t.ndim == 1:
+            x_t = x_t.reshape(1, -1)
+
+        if h_prev.ndim == 1:
+            h_prev = h_prev.reshape(1, -1)
+
+        if x_t.shape[1] != self.D_in:
+            raise ValueError(
+                "Input feature dimension mismatch. Expected shape[1] to be "
+                f"{self.D_in}, got {x_t.shape[1]} from shape {x_t.shape}.")
+
+        if h_prev.shape[1] != self.D_h:
+            raise ValueError(
+                "Hidden state dimension mismatch. Expected shape[1] to be "
+                f"{self.D_h}, got {h_prev.shape[1]} from shape {h_prev.shape}."
+            )
+
+        if x_t.shape[0] != h_prev.shape[0]:
+            raise ValueError(
+                f"Batch size mismatch between x_t ({x_t.shape[0]})"
+                f" and h_prev ({h_prev.shape[0]}).")
+
+        a_z_t = x_t @ self._W_xz + h_prev @ self._W_hz + self._b_z
+        z_t = self.gate_activation.forward(a_z_t)
+
+        a_r_t = x_t @ self._W_xr + h_prev @ self._W_hr + self._b_r
+        r_t = self.gate_activation.forward(a_r_t)
+
+        a_h_tilde_t = (x_t @ self._W_xh + (r_t * h_prev) @ self._W_hh +
+                       self._b_h)
+        h_tilde_t = self.candidate_activation.forward(a_h_tilde_t)
+
+        h_t = z_t * h_tilde_t + (1 - z_t) * h_prev
+
+        return h_t, z_t, r_t, h_tilde_t
 
 
 class Dense(Layer):
