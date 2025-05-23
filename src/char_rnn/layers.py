@@ -170,35 +170,6 @@ class Recurrent(Layer):
             "b_h": self._dL_db_h
         }
 
-    def forward_step(self, x_t: np.ndarray, h_prev: np.ndarray) -> np.ndarray:
-        if x_t.ndim == 1:
-            x_t = x_t.reshape(1, -1)
-
-        if h_prev.ndim == 1:
-            h_prev = h_prev.reshape(1, -1)
-
-        if x_t.shape[1] != self.D_in:
-            raise ValueError(
-                "Input feature dimension mismatch. Expected shape[1] to be "
-                f"{self.D_in}, got {x_t.shape[1]} from shape {x_t.shape}.")
-
-        if h_prev.shape[1] != self.D_h:
-            raise ValueError(
-                "Hidden state dimension mismatch. Expected shape[1] to be "
-                f"{self.D_h}, got {h_prev.shape[1]} from shape {h_prev.shape}."
-            )
-
-        if x_t.shape[0] != h_prev.shape[0]:
-            raise ValueError(
-                f"Batch size mismatch between x_t ({x_t.shape[0]})"
-                f" and h_prev ({h_prev.shape[0]}).")
-
-        a_h_t = x_t @ self._W_xh + h_prev @ self._W_hh + self._b_h
-
-        h_t = self.activation.forward(a_h_t)
-
-        return h_t
-
     def forward(self,
                 x: np.ndarray,
                 h_0: Optional[np.ndarray] = None,
@@ -286,6 +257,35 @@ class Recurrent(Layer):
                      self.name, dL_dy.shape, dL_dx_seq.shape)
 
         return dL_dx_seq
+
+    def forward_step(self, x_t: np.ndarray, h_prev: np.ndarray) -> np.ndarray:
+        if x_t.ndim == 1:
+            x_t = x_t.reshape(1, -1)
+
+        if h_prev.ndim == 1:
+            h_prev = h_prev.reshape(1, -1)
+
+        if x_t.shape[1] != self.D_in:
+            raise ValueError(
+                "Input feature dimension mismatch. Expected shape[1] to be "
+                f"{self.D_in}, got {x_t.shape[1]} from shape {x_t.shape}.")
+
+        if h_prev.shape[1] != self.D_h:
+            raise ValueError(
+                "Hidden state dimension mismatch. Expected shape[1] to be "
+                f"{self.D_h}, got {h_prev.shape[1]} from shape {h_prev.shape}."
+            )
+
+        if x_t.shape[0] != h_prev.shape[0]:
+            raise ValueError(
+                f"Batch size mismatch between x_t ({x_t.shape[0]})"
+                f" and h_prev ({h_prev.shape[0]}).")
+
+        a_h_t = x_t @ self._W_xh + h_prev @ self._W_hh + self._b_h
+
+        h_t = self.activation.forward(a_h_t)
+
+        return h_t
 
 
 class Dense(Layer):
