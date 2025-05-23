@@ -85,3 +85,34 @@ class Softmax(Activation):
             "dL_dz_shape=%s.", self.name, dL_dy.shape, y.shape, dL_dz.shape)
 
         return dL_dz
+
+
+class Sigmoid(Activation):
+
+    def __init__(self, name: Optional[str] = None) -> None:
+        super().__init__(name)
+
+        logger.info("%s activation function initialized.", self.name)
+
+    def forward(self, z: np.ndarray) -> np.ndarray:
+        y = 1.0 / (1.0 + np.exp(-z))
+
+        logger.debug("%s forward pass: input_shape=%s, output_shape=%s.",
+                     self.name, z.shape, y.shape)
+
+        return y
+
+    def backward(self, dL_dy: np.ndarray, y: np.ndarray) -> np.ndarray:
+        if dL_dy.shape != y.shape:
+            raise ValueError(
+                f"Shape mismatch between output gradients ({dL_dy.shape}) and "
+                f"output ({y.shape}). They must be identical.")
+
+        dy_dz = y * (1.0 - y)
+        dL_dz = dL_dy * dy_dz
+
+        logger.debug(
+            "%s backward pass: dL_dy_shape=%s, y_shape=%s, "
+            "dL_dz_shape=%s.", self.name, dL_dy.shape, y.shape, dL_dz.shape)
+
+        return dL_dz
