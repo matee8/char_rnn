@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
 from char_rnn.activations import Activation, Softmax, Tanh
+from char_rnn.initializers import GlorotUniform, Initializer, Orthogonal, RandomUniform, Zeros
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,11 @@ class Layer(ABC):
 
 class Embedding(Layer):
 
-    def __init__(self, V: int, D_e: int, name: Optional[str] = None) -> None:
+    def __init__(self,
+                 V: int,
+                 D_e: int,
+                 W_e_initializer: Initializer = RandomUniform(),
+                 name: Optional[str] = None) -> None:
         super().__init__(name)
 
         if V <= 0:
@@ -47,11 +52,13 @@ class Embedding(Layer):
 
         self.V = V
         self.D_e = D_e
-        self._W_e = np.random.randn(V, D_e).astype(np.float32) * 0.01
-        self._dL_dW_e = np.zeros_like(self._W_e, dtype=np.float32)
+        self.W_e_initializer = W_e_initializer
 
-        logger.info("%s initialized with V=%d, D_e=%d.", self.name, self.V,
-                    self.D_e)
+        self._W_e = self.W_e_initializer.initialize((V, D_e))
+        self._dL_dW_e = np.zeros_like(self._W_e)
+
+        logger.info("%s initialized with V=%d, D_e=%d, W_e_initializer=%s.",
+                    self.name, self.V, self.D_e, self.W_e_initializer.name)
 
     @property
     def params(self) -> Dict[str, np.ndarray]:
@@ -112,6 +119,9 @@ class Recurrent(Layer):
                  D_in: int,
                  D_h: int,
                  activation: Optional[Activation] = None,
+                 W_xh_initializer: Initializer = GlorotUniform(),
+                 W_hh_initializer: Initializer = Orthogonal(),
+                 b_h_initializer: Initializer = Zeros(),
                  name: Optional[str] = None) -> None:
         super().__init__(name)
 
@@ -125,10 +135,13 @@ class Recurrent(Layer):
 
         self.D_in = D_in
         self.D_h = D_h
+        self.W_xh_initializer = W_xh_initializer
+        self.W_hh_initializer = W_hh_initializer
+        self.b_h_initializer = b_h_initializer
 
-        self._W_xh = np.random.randn(D_in, D_h) * 0.01
-        self._W_hh = np.random.randn(D_h, D_h) * 0.01
-        self._b_h = np.zeros((1, D_h))
+        self._W_xh = self.W_xh_initializer.initialize((D_in, D_h))
+        self._W_hh = self.W_hh_initializer.initialize((D_h, D_h))
+        self._b_h = self.b_h_initializer.initialize((1, D_h))
 
         self._dL_dW_xh = np.zeros_like(self._W_xh)
         self._dL_dW_hh = np.zeros_like(self._W_hh)
@@ -139,8 +152,12 @@ class Recurrent(Layer):
 
         self._activation = activation or Tanh()
 
-        logger.info("%s initialized with D_in=%d, D_h=%d, activation=%s.",
-                    self.name, self.D_in, self.D_h, self._activation.name)
+        logger.info(
+            "%s initialized with D_in=%d, D_h=%d, activation=%s, "
+            "W_xh_initializer=%s, W_hh_initializer=%s, "
+            "b_h_initializer=%s.", self.name, self.D_in, self.D_h,
+            self._activation.name, self.W_xh_initializer.name,
+            self.W_hh_initializer.name, self.b_h_initializer.name)
 
     @property
     def params(self) -> Dict[str, np.ndarray]:
@@ -278,6 +295,8 @@ class Dense(Layer):
                  D_in: int,
                  D_out: int,
                  activation: Optional[Activation] = None,
+                 W_initializer: Initializer = GlorotUniform(),
+                 b_initializer: Initializer = Zeros(),
                  name: Optional[str] = None) -> None:
         super().__init__(name)
 
@@ -291,9 +310,11 @@ class Dense(Layer):
 
         self.D_in = D_in
         self.D_out = D_out
+        self.W_initializer = W_initializer
+        self.b_initializer = b_initializer
 
-        self._W = np.random.randn(D_in, D_out) * 0.01
-        self._b = np.zeros((1, D_out))
+        self._W = self.W_initializer.initialize((D_in, D_out))
+        self._b = self.b_initializer.initialize((1, D_out))
 
         self._dL_dW = np.zeros_like(self._W)
         self._dL_db = np.zeros_like(self._b)
@@ -302,8 +323,11 @@ class Dense(Layer):
 
         self._activation = activation or Softmax()
 
-        logger.info("%s initialized with D_in=%d, D_out=%d, activation=%s.",
-                    self.name, self.D_in, self.D_out, self._activation.name)
+        logger.info(
+            "%s initialized with D_in=%d, D_out=%d, activation=%s, "
+            "W_initializer=%s, b_initializer=%s.", self.name, self.D_in,
+            self.D_out, self._activation.name, self.W_initializer.name,
+            self.b_initializer.name)
 
     @property
     def params(self) -> Dict[str, np.ndarray]:

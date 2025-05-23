@@ -27,7 +27,7 @@ class SparseCategoricalCrossEntropy(Loss):
         super().__init__(name)
         self.eps = eps
 
-        logger.info("%s initialized with epsilon=%e.", self.name, self.eps)
+        logger.info("%s initialized with epsilon=%.0e.", self.name, self.eps)
 
     def forward(self, y_pred: np.ndarray, y_true: np.ndarray) -> float:
         if y_pred.ndim != 2:
