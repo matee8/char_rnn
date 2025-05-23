@@ -13,6 +13,8 @@ sequences to predict the next character in the sequence.
 
 The model's operation can be conceptualized in several stages:
 
+-   **Weights Initialization**: Parameters (weights) within the network layers
+    are initialized using specific strategies prior to training.
 -   **Input representation**: Raw character sequences are first transformed
     into a dense, continuous numerical format via an **embedding layer**.
 -   **Sequential processing**: The embedded sequence is then fed into a
@@ -95,6 +97,7 @@ capable of generating coherent text based on the patterns it has learned.
 │   └── char_rnn/
 │       ├── __init__.py
 │       ├── activations.py    # Activation function implementations
+│       ├── initializers.py   # Weight initializer implementations
 │       ├── layers.py         # Neural network layer implementations
 │       ├── losses.py         # Loss function implementations
 │       ├── models.py         # CharRNN model architecture
@@ -239,6 +242,8 @@ The project is structured to separate concerns.
 
 -   **`char_rnn/activations.py`**: Defines the activation functions which could
     be used in the layers, with their derivatives.
+-   **`char_rnn/initializers.py`**: Implements various weight initialization
+    strategies that can be used by layers to set their initial parameter values.
 -   **`char_rnn/layers.py`**: Defines the building blocks of the neural network,
     abstracting operations such as forward and backward passes for layers.
 -   **`char_rnn/losses.py`**: Provides the interface for quantifying model
@@ -255,8 +260,6 @@ The project is structured to separate concerns.
 
 # Future Enhancements
 
--   **Weight initialization methods**: Implement various weight initialization
-    strategies.
 -   **Advanced recurrent cells**: Implement more sophisticated RNN cells for
     improved sequence modeling capabilities.
 -   **Hyperparameter optimization**: Implement routines for automated
