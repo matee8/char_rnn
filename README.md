@@ -16,12 +16,23 @@ The model's operation can be conceptualized in several stages:
 -   **Input representation**: Raw character sequences are first transformed
     into a dense, continuous numerical format via an **embedding layer**. The
     weights for this layer are initialized using a random uniform distribution.
--   **Sequential processing**: The embedded sequence is then fed into a
-    **recurrent layer**. This layer is equipped with a hidden state mechanism
-    to iteratively process each element of the sequence. It uses a tanh
-    activation function at each time step. For the input-to-hidden weights, a
-    Glorot Uniform initializer, and for the hidden-to-hidden weights, an
-    Orthogonal initializer is used.
+-   **Sequential processing**: The embedded sequence is processed by a recurrent
+    layer. This project provides:
+
+    -   A **Simple Recurrent Layer**: This layer uses a standard RNN cell with
+        a tanh activation function. Input-to-hidden weights are initialized
+        using Glorot Uniform, and hidden-to-hidden weights with an Orthogonal
+        initializer.
+    -   A **Gated Recurrent Unit (GRU) Layer**: This layer implements the GRU
+        cell, which uses update and reset gates to manage information flow,
+        helping to capture longer-range dependencies. By default, it uses a tanh
+        activation for the candidate hidden state and sigmoid activations for
+        the gates. Input-related kernel weights are initialized with Glorot
+        Uniform, and hidden-state-related recurrent weights with an Orthogonal
+        initializer.
+
+    By default, the model used in the scripts uses the GRU layer.
+
 -   **Output prediction**: The final hidden state from the recurrent layer is
     projected through an **output layer** which uses a softmax activation
     function. Uses the Glorot Uniform initializer.
@@ -32,9 +43,15 @@ The model's operation can be conceptualized in several stages:
     predicted character probabilites and the true next character is
     quantified using a **sparse categorical cross-entropy loss function**.
 -   **Optimization**: The model's internal parameters are iteratively
-    adjusted to minimize this loss through an **Adam optimization algorithm**.
-    Adam adaptively tunes the learning rates for each parameter, promoting
-    efficient convergence.
+    adjusted to minimize this loss. The project supports multiple optimization
+    algorithms:
+
+    -   **Adam**: Adaptively tunes learning rates for each parameter.
+    -   **Nadam**: Incorporates Nesterov momentum into Adam for potentially
+        improved convergence.
+
+    By default, the model used in the scripts uses the Nadam optimizer.
+
 -   **Performance metrics**: The model's predictive capability is evaluated
     using **accuracy**, which measures the proportion of correctly predicted
     next characters on a given dataset.
@@ -295,8 +312,6 @@ The project is structured to separate concerns.
 
 # Future Enhancements
 
--   **Advanced recurrent cells**: Implement more sophisticated RNN cells for
-    improved sequence modeling capabilities.
 -   **Hyperparameter optimization**: Implement routines for automated
     hyperparameter tuning to find optimal model configurations.
 
