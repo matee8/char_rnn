@@ -78,8 +78,6 @@ This architecture forms a complete pipeline for learning from sequential data,
 from raw text input to character-level probabilistic predictions, and is
 capable of generating coherent text based on the patterns it has learned.
 
-The model isn't stateful.
-
 # Getting Started
 
 ## Prerequisites
