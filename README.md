@@ -5,6 +5,15 @@ character-level text generation. This repository serves as an educational
 resource for understanding the core mechanisms of neural networks, without
 relying on any external deep learning framework.
 
+# Quick links
+
+- [Overview](#overview)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Code Structure](#code-structure)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+
 # Overview
 
 This implementation features a sequential neural network architecture designed
