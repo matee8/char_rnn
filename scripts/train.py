@@ -12,8 +12,9 @@ import numpy as np
 import requests
 
 from char_rnn import preprocessing, utils
+from char_rnn.layers import Dense, Embedding, GRU
 from char_rnn.losses import SparseCategoricalCrossEntropy
-from char_rnn.models import CharRNN
+from char_rnn.models import Model
 from char_rnn.optimizers import Nadam
 from char_rnn.preprocessing import TextVectorizer
 
@@ -106,9 +107,11 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        model = CharRNN(V=vectorizer.vocabulary_size,
-                        D_e=args.embedding_dim,
-                        D_h=args.hidden_dim)
+        model = Model([
+            Embedding(V=vectorizer.vocabulary_size, D_e=args.embedding_dim),
+            GRU(D_in=args.embedding_dim, D_h=args.hidden_dim),
+            Dense(D_in=args.hidden_dim, D_out=vectorizer.vocabulary_size)
+        ])
         optimizer = Nadam(eta=args.learning_rate)
         loss_fn = SparseCategoricalCrossEntropy()
         model.compile(optimizer, loss_fn)
@@ -142,11 +145,11 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        model.fit(X_batches=X_train,
+        model.fit(x_batches=X_train,
                   y_batches=y_train,
                   num_epochs=args.num_epochs,
                   log_interval=args.log_interval,
-                  X_val=X_valid,
+                  x_val=X_valid,
                   y_val=y_valid,
                   seed=args.seed)
     except (ValueError, RuntimeError) as e:

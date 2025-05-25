@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np
 
 from char_rnn import utils
-from char_rnn.models import CharRNN
+from char_rnn.layers import Dense, Embedding, GRU
+from char_rnn.models import Model
 from char_rnn.preprocessing import TextVectorizer
 
 logging.basicConfig(level=logging.INFO,
@@ -22,7 +23,7 @@ DEFAULT_WEIGHTS_PATH = (Path(__file__).parent.parent / "models" /
 DEFAULT_DATA_PATH = Path(__file__).parent.parent / "data" / "raw" / "input.txt"
 
 
-def generate_text(model: CharRNN,
+def generate_text(model: Model,
                   vectorizer: TextVectorizer,
                   start_string: str,
                   n_chars: int,
@@ -34,14 +35,10 @@ def generate_text(model: CharRNN,
 
     generated_text = encoded_start_string
 
-    x_t = encoded_start_string
-
-    h_t = np.zeros((1, model.D_h), dtype=np.float32)
-
     for _ in range(n_chars):
-        y_proba, h_t = model.predict(x_t, h_t, return_hidden=True)
+        y_proba = model.predict(generated_text)
 
-        if y_proba is None or h_t is None:
+        if y_proba is None:
             raise RuntimeError("Model prediction returned None unexpectedly "
                                "during text generation.")
 
@@ -59,10 +56,10 @@ def generate_text(model: CharRNN,
                 exp_scaled_log_probas /
                 np.sum(exp_scaled_log_probas, axis=1, keepdims=True))
 
-            next_char = np.random.choice(model.V, p=final_probas[0])
+            next_char = np.random.choice(vectorizer.vocabulary_size,
+                                         p=final_probas[0])
 
         generated_text = np.append(generated_text, next_char)
-        x_t = np.array([next_char])
 
     logger.info("Text generation completed successfully.")
 
@@ -93,9 +90,11 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        model = CharRNN(V=vectorizer.vocabulary_size,
-                        D_e=args.embedding_dim,
-                        D_h=args.hidden_dim)
+        model = Model([
+            Embedding(V=vectorizer.vocabulary_size, D_e=args.embedding_dim),
+            GRU(D_in=args.embedding_dim, D_h=args.hidden_dim),
+            Dense(D_in=args.hidden_dim, D_out=vectorizer.vocabulary_size)
+        ])
         utils.load_model_weights(model, args.weights_path)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error("Failed to initialize model or load weights: %s.",

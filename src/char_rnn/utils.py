@@ -32,7 +32,7 @@ def save_model_weights(model: Model, path: Path) -> None:
     weights: Dict[str, np.ndarray] = {}
     logger.debug("Preparing to save weights for model '%s'.", model.name)
 
-    for i, layer in enumerate(model.trainable_layers):
+    for i, layer in enumerate(model.layers):
         for param_name, param_value in layer.params.items():
             key = f"layer_{i}_{layer.name}_{param_name}"
             weights[key] = param_value
@@ -61,7 +61,7 @@ def load_model_weights(model: Model, path: Path) -> None:
 
         logger.debug("Loading weights into model '%s'.", model.name)
 
-        for i, layer in enumerate(model.trainable_layers):
+        for i, layer in enumerate(model.layers):
             for param_name, current_value in layer.params.items():
                 key = f"layer_{i}_{layer.name}_{param_name}"
                 expected_keys.add(key)

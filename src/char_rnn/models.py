@@ -1,249 +1,197 @@
 import logging
-from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
 from char_rnn import preprocessing
-from char_rnn.layers import Dense, Embedding, GRU, Layer
+from char_rnn.layers import Layer
 from char_rnn.losses import Loss
 from char_rnn.optimizers import Optimizer
 
 logger = logging.getLogger(__name__)
 
 
-class Model(ABC):
+class Model:
 
-    def __init__(self, name: Optional[str]) -> None:
+    def __init__(self,
+                 layers: List[Layer],
+                 name: Optional[str] = None) -> None:
+        if not layers:
+            raise ValueError("Model must have at least one layer.")
+
         self.name = name or self.__class__.__name__
+        self.layers = layers
 
-        self.trainable_layers: List[Layer] = []
+        self.loss: Optional[Loss] = None
+        self.optimizer: Optional[Optimizer] = None
 
-        self._loss_fn: Optional[Loss] = None
-        self._optimizer: Optional[Optimizer] = None
+        self._h_t_final: Optional[np.ndarray] = None
 
-    def compile(self, optimizer: Optimizer, loss_fn: Loss) -> None:
-        self._optimizer = optimizer
-        self._loss_fn = loss_fn
+        logger.info("%s initialized with %d layers.", self.name,
+                    len(self.layers))
+
+    def compile(self, optimizer: Optimizer, loss: Loss) -> None:
+        self.optimizer = optimizer
+        self.loss = loss
 
         logger.info("%s compiled with optimizer: %s, loss function: %s.",
-                    self.name, self._optimizer.name, self._loss_fn.name)
+                    self.name, self.optimizer.name, self.loss.name)
 
-    @abstractmethod
-    def predict(self, x: np.ndarray,
-                **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-        pass
+    def predict(self, x: np.ndarray, **kwargs) -> np.ndarray:
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
 
-    @abstractmethod
-    def evaluate(self, X_batches: np.ndarray, y_batches: np.ndarray,
+        logger.debug("Generating predictions for input shape: %s", x.shape)
+
+        return self._forward(x, **kwargs)
+
+    def evaluate(self, x_batches: np.ndarray, y_batches: np.ndarray,
                  **kwargs) -> float:
-        pass
+        if x_batches.shape[0] != y_batches.shape[0]:
+            raise ValueError(
+                f"Number of input batches ({x_batches.shape[0]}) must match "
+                f"number of target batches ({y_batches.shape[0]}).")
+
+        correct = 0
+        total = 0
+        num_batches = x_batches.shape[0]
+
+        logger.debug("Starting evaluation over %d batches.", num_batches)
+
+        for i, (x, y) in enumerate(zip(x_batches, y_batches)):
+            try:
+                y_proba = self._forward(x, **kwargs)
+                y_pred_labels = np.argmax(y_proba, axis=1)
+
+                correct += np.sum(y_pred_labels == y)
+
+                if (i + 1) % max(1, num_batches // 10) == 0:
+                    logger.info(
+                        "Evaluation progress: %d/%d batches processed.", i + 1,
+                        num_batches)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("Error evaluating batch %d: %s.",
+                             i + 1,
+                             e,
+                             exc_info=True)
+                continue
+
+        if total == 0:
+            raise RuntimeError("No samples found in evaluation data after "
+                               "iterating batches.")
+
+        accuracy = correct / total
+
+        logger.info("%s evaluation completed. Accuracy: %.4f (%d/%d correct).",
+                    self.name, accuracy, correct, total)
+
+        return accuracy
 
     def fit(self,
-            X_batches: np.ndarray,
+            x_batches: np.ndarray,
             y_batches: np.ndarray,
             num_epochs: int,
             log_interval: int,
-            X_val: Optional[np.ndarray] = None,
+            x_val: Optional[np.ndarray] = None,
             y_val: Optional[np.ndarray] = None,
             seed: Optional[int] = None) -> None:
-        if self._loss_fn is None or self._optimizer is None:
+        if self.optimizer is None or self.loss is None:
             raise RuntimeError(
                 f"{self.name} has not been compiled yet. Call compile("
-                "optimizer, loss_fn) before training or evaluation.")
+                "optimizer, loss) before training.")
 
         if num_epochs <= 0:
             raise ValueError("Number of epochs must be positive.")
 
         if log_interval <= 0:
-            raise ValueError("Interval of logs must be positive.")
+            raise ValueError("Log interval must be positive.")
 
-        num_total_batches = X_batches.shape[0]
+        if x_batches.shape[0] != y_batches.shape[0]:
+            raise ValueError(
+                f"Number of input batches ({x_batches.shape[0]}) must match "
+                f"number of target batches ({y_batches.shape[0]}).")
 
-        if X_val is not None and y_val is not None:
-            if X_val.shape[0] > 0:
+        num_batches = x_batches.shape[0]
+        if num_batches == 0:
+            logger.warning(
+                "Training data (x_batches) is empty. Skipping training.")
+            return
+
+        if x_val is not None and y_val is not None:
+            if x_val.shape[0] > 0:
                 logger.info("Validation dataset provided with %d batches.",
-                            X_val.shape[0])
+                            x_val.shape[0])
             else:
                 logger.warning("Validation dataset is empty. Skipping "
                                "validation.")
 
         logger.info(
-            "Starting training for %s over %d epochs, with %d batches "
-            "per epoch.", self.name, num_epochs, num_total_batches)
+            "Starting training for %s: %d epochs, %d batches per epoch.",
+            self.name, num_epochs, num_batches)
 
         for epoch in range(1, num_epochs + 1):
             epoch_losses: List[float] = []
 
-            X_shuffled, y_shuffled = (preprocessing.shuffle_batches(
-                X_batches, y_batches,
-                (seed + epoch if seed is not None else None)))
+            current_seed = (seed + epoch - 1) if seed is not None else None
 
-            for i, (x, y) in enumerate(zip(X_shuffled, y_shuffled)):
+            x_shuffled, y_shuffled = preprocessing.shuffle_batches(
+                x_batches, y_batches, current_seed)
+
+            for i, (x, y) in enumerate(zip(x_shuffled, y_shuffled)):
                 try:
-                    y_pred = self._forward(x)
+                    y_proba = self._forward(x)
 
-                    loss = self._loss_fn.forward(y_pred, y)
+                    loss = self.loss.forward(y_proba, y)
                     epoch_losses.append(loss)
 
-                    dL_dy_pred = self._loss_fn.backward(y_pred, y)
-                    self._backward(dL_dy_pred)
+                    dL_dy_proba = self.loss.backward(y_proba, y)
+                    self._backward(dL_dy_proba)
 
-                    self._optimizer.step(self.trainable_layers)
+                    self.optimizer.step(self.layers)
 
                     if (i + 1) % log_interval == 0:
                         logger.info("Epoch %d/%d - Batch %d/%d - Loss: %.4f",
-                                    epoch, num_epochs, i + 1,
-                                    num_total_batches, loss)
+                                    epoch, num_epochs, i + 1, num_batches,
+                                    loss)
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.error(
-                        "Error during training step for batch %d "
-                        "in epoch %d: %s.",
-                        i + 1,
-                        epoch,
-                        e,
-                        exc_info=True)
+                    logger.error("Error training batch %d in epoch %d: %s",
+                                 i + 1,
+                                 epoch,
+                                 e,
+                                 exc_info=True)
                     continue
 
-            if not epoch_losses:
-                logger.warning("Epoch %d completed with no batches processed.")
-                avg_epoch_loss = float("nan")
-            else:
-                avg_epoch_loss = np.mean(epoch_losses)
-
-            logger.info("Epoch %d/%d - Average Loss: %.4f", epoch, num_epochs,
-                        avg_epoch_loss)
-
-            if X_val is not None and y_val is not None:
+            avg_loss = np.mean(epoch_losses) if epoch_losses else float("nan")
+            logger.info("Epoch %d/%d - Average Training Loss: %.4f", epoch,
+                        num_epochs, avg_loss)
+            if x_val is not None and y_val is not None and x_val.shape[0] > 0:
                 try:
-                    val_accuracy = self.evaluate(X_val, y_val)
+                    val_accuracy = self.evaluate(x_val, y_val)
                     logger.info("Epoch %d/%d - Validation accuracy: %.4f",
                                 epoch, num_epochs, val_accuracy)
-                except Exception as e:
-                    logger.error("Error during validation for epoch %d: %s.",
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logger.error("Error during validation for epoch %d: %s",
                                  epoch,
                                  e,
                                  exc_info=True)
 
-    @abstractmethod
+        logger.info("Training finished for model %s.", self.name)
+
     def _forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
-        pass
+        z = x
 
-    @abstractmethod
-    def _backward(self, dL_dy: np.ndarray) -> None:
-        pass
+        for layer in self.layers:
+            z = layer.forward(z, **kwargs)
 
-
-class CharRNN(Model):
-
-    def __init__(self,
-                 V: int,
-                 D_e: int,
-                 D_h: int,
-                 name: Optional[str] = None) -> None:
-        super().__init__(name)
-
-        if V <= 0:
-            raise ValueError("Vocabulary size (V) must be positive.")
-
-        if D_e <= 0:
-            raise ValueError("Embedding dimension (D_e) must be positive.")
-
-        if D_h <= 0:
-            raise ValueError("Hidden dimension (D_h) must be positive.")
-
-        self.V = V
-        self.D_e = D_e
-        self.D_h = D_h
-
-        self._embedding_layer = Embedding(V=self.V, D_e=self.D_e)
-        self._gru_layer = GRU(D_in=self.D_e, D_h=self.D_h)
-        self._dense_layer = Dense(D_in=self.D_h, D_out=self.V)
-
-        self.trainable_layers = [
-            self._embedding_layer, self._gru_layer, self._dense_layer
-        ]
-
-        self._h_t_final: Optional[np.ndarray] = None
-
-        logger.info("%s initialized with V=%d, D_e=%d, D_h=%d", self.name,
-                    self.V, self.D_e, self.D_h)
-
-    def predict(self,
-                x: np.ndarray,
-                h_0: Optional[np.ndarray] = None,
-                return_hidden: bool = False,
-                **kwargs) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
-
-        if h_0 is not None and h_0.ndim == 1:
-            h_0 = h_0.reshape(1, -1)
-
-        y_pred = self._forward(x, h_0)
-
-        if return_hidden:
-            if self._h_t_final is None:
-                raise RuntimeError("Expected final hidden states to be set "
-                                   "after forward pass but it is None.")
-            return y_pred, self._h_t_final
-        else:
-            return y_pred, None
-
-    def evaluate(self, X_batches: np.ndarray, y_batches: np.ndarray,
-                 **kwargs) -> float:
-        correct = 0
-        total = 0
-
-        num_batches = X_batches.shape[0]
-
-        logger.debug("Starting evaluation for %s over %d batches.", self.name,
-                     num_batches)
-
-        for i, (x, y) in enumerate(zip(X_batches, y_batches)):
-            y_proba = self._forward(x)
-
-            next_chars = np.argmax(y_proba, axis=1)
-
-            correct_in_batch = np.sum(next_chars == y)
-            total_in_batch = y.shape[0]
-
-            correct += correct_in_batch
-            total += total_in_batch
-
-            if (i + 1) % (num_batches // 10 + 1) == 0:
-                logger.info(
-                    "Evaluation progress for %s: Batch %d/%d processed.",
-                    self.name, i + 1, num_batches)
-
-        accuracy = correct / total
-        logger.debug(
-            "%s evaluation completed. Accuracy: %.4f (%d/%d correct).",
-            self.name, accuracy, correct, total)
-
-        return accuracy
-
-    def _forward(self,
-                 x: np.ndarray,
-                 h_0: Optional[np.ndarray] = None,
-                 **kwargs) -> np.ndarray:
-        y_emb = self._embedding_layer.forward(x)
-
-        h_t_final = self._gru_layer.forward(y_emb, h_0=h_0)
-        self._h_t_final = h_t_final
-
-        return self._dense_layer.forward(h_t_final)
+        return z
 
     def _backward(self, dL_dy: np.ndarray) -> None:
-        dL_dh_t_final = self._dense_layer.backward(dL_dy)
+        gradient = dL_dy
 
-        if dL_dh_t_final is None:
-            raise RuntimeError(
-                "Dense layer backward pass returned None unexpectedly.")
-
-        dL_dy_emb = self._gru_layer.backward(dL_dh_t_final)
-        if dL_dy_emb is None:
-            raise RuntimeError(
-                "Recurrent layer backward pass returned None unexpectedly.")
-
-        self._embedding_layer.backward(dL_dy_emb)
+        for i, layer in enumerate(reversed(self.layers)):
+            gradient = layer.backward(
+                gradient)  # type: ignore[reportArgumentType]
+            if gradient is None and i != len(self.layers) - 1:
+                raise RuntimeError(
+                    f"Layer {layer.name} backward pass returned "
+                    "None unexpectedly.")
