@@ -136,12 +136,12 @@ def parse_arguments() -> argparse.Namespace:
                         help="Number of additional characters to generate.")
     parser.add_argument("--embedding-dim",
                         type=int,
-                        default=128,
-                        help="Embedding dimension.")
+                        default=16,
+                        help="Dimension of character embeddings.")
     parser.add_argument("--hidden-dim",
                         type=int,
-                        default=10,
-                        help="Hidden layer dimension.")
+                        default=128,
+                        help="Dimension of hidden states.")
     parser.add_argument("--temperature",
                         type=float,
                         default=1.0,

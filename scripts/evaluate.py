@@ -107,12 +107,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--embedding-dim",
                         type=int,
-                        default=128,
-                        help="Embedding dimension.")
+                        default=16,
+                        help="Dimension of character embeddings.")
     parser.add_argument("--hidden-dim",
                         type=int,
-                        default=10,
-                        help="Hidden layer dimension.")
+                        default=128,
+                        help="Dimension of hidden states.")
     parser.add_argument("--window-size",
                         type=int,
                         default=100,

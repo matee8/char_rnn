@@ -166,9 +166,12 @@ def parse_arguments() -> argparse.Namespace:
     model_args = parser.add_argument_group("Model hyperparameters")
     model_args.add_argument("--embedding-dim",
                             type=int,
-                            default=128,
+                            default=16,
                             help="Dimension of character embeddings.")
-    model_args.add_argument("--hidden-dim", type=int, default=10, help="")
+    model_args.add_argument("--hidden-dim",
+                            type=int,
+                            default=128,
+                            help="Dimension of hidden states.")
     model_args.add_argument("--learning-rate",
                             type=float,
                             default=0.001,
