@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
-from char_rnn import preprocessing, utils
+from char_rnn import preprocessing
 from char_rnn.layers import Dense, Embedding, GRU
 from char_rnn.losses import SparseCategoricalCrossEntropy
 from char_rnn.models import Model
@@ -81,7 +81,7 @@ def main(args: argparse.Namespace):
                     data_file_path)
 
     try:
-        text_data = utils.load_data_from_file(data_file_path)
+        text_data = preprocessing.load_data_from_file(data_file_path)
     except (FileNotFoundError, IOError) as e:
         logger.error("Error loading data file '%s': %s.",
                      data_file_path,
