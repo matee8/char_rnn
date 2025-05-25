@@ -76,7 +76,7 @@ def main(args: argparse.Namespace):
             GRU(D_in=args.embedding_dim, D_h=args.hidden_dim),
             Dense(D_in=args.hidden_dim, D_out=vectorizer.vocabulary_size)
         ])
-        utils.load_model_weights(model, args.weights_path)
+        model.load_weights(args.weights_path)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error("Failed to initialize model or load weights: %s.",
                      e,

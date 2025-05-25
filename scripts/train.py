@@ -163,7 +163,7 @@ def main(args: argparse.Namespace):
                 model_path)
 
     try:
-        utils.save_model_weights(model, model_path)
+        model.save_weights(model_path)
     except IOError as e:
         logger.error("Failed to save model weights: %s.", e, exc_info=True)
         return

@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
@@ -176,6 +177,87 @@ class Model:
                                  exc_info=True)
 
         logger.info("Training finished for model %s.", self.name)
+
+    def save_weights(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        weights = {}
+
+        logger.debug("Collecting weights from %d layers in model '%s'.",
+                     len(self.layers), self.name)
+
+        for i, layer in enumerate(self.layers):
+            for param_name, param_value in layer.params.items():
+                key = f"layer_{i}_{layer.name}_{param_name}"
+                weights[key] = param_value
+
+                logger.debug("Collected weight '%s' with shape %s.", key,
+                             param_value.shape)
+
+        if not weights:
+            raise ValueError("No trainable parameters found in model "
+                             f"'{self.name}'. Cannot save empty weight "
+                             "dictionary.")
+
+        try:
+            np.savez_compressed(path, **weights, allow_pickle=False)
+            logger.info(
+                "Model weights (%d arrays) for '%s' successfully saved "
+                "to '%s'.", len(weights), self.name, path)
+        except IOError as e:
+            raise IOError(f"Failed to save weights to '{path}': {e}") from e
+
+    def load_weights(self, path: Path) -> None:
+        if not path.is_file():
+            raise FileNotFoundError(f"Weights file not found at '{path}'.")
+
+        try:
+            with np.load(path, allow_pickle=False) as weights:
+                logger.info(
+                    "Successfully loaded weights from '%s' for model "
+                    "'%s'.", path, self.name)
+
+                loaded_keys = set(weights.keys())
+                expected_keys = set()
+
+                logger.debug("Loading weights into model '%s'.", self.name)
+
+                for i, layer in enumerate(self.layers):
+                    for param_name, current_value in layer.params.items():
+                        key = f"layer_{i}_{layer.name}_{param_name}"
+                        expected_keys.add(key)
+
+                        if key not in weights:
+                            raise ValueError(
+                                f"Parameter '{key}' (for layer {layer.name}', "
+                                "param '{param_name}') not found in weights "
+                                f"file '{path}'.")
+
+                        loaded_params = weights[key]
+
+                        if current_value.shape != loaded_params.shape:
+                            raise ValueError(
+                                f"Shape mismatch for parameter '{key}'. "
+                                f"Model expects {current_value.shape} but file "
+                                f"contains {loaded_params.shape}.")
+
+                        current_value[:] = loaded_params
+                        logger.debug(
+                            "Loaded weights for '%s' with shape %s into layer "
+                            "'%s'.", key, current_value.shape, layer.name)
+
+                extra_keys = loaded_keys - expected_keys
+                if extra_keys:
+                    logger.warning(
+                        "Weights file '%s' contains extra, unused "
+                        "parameter arrays: %s.", path,
+                        sorted(list(extra_keys)))
+
+                logger.info(
+                    "All expected model weights successfully loaded into model "
+                    "%s.", self.name)
+        except IOError as e:
+            raise IOError(f"Failed to load weights from '{path}': {e}") from e
 
     def _forward(self, x: np.ndarray, **kwargs) -> np.ndarray:
         z = x
