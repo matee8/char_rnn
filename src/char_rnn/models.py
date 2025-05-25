@@ -5,9 +5,9 @@ from typing import List, Optional
 import numpy as np
 
 from char_rnn import preprocessing
-from char_rnn.layers import Layer
-from char_rnn.losses import Loss
-from char_rnn.optimizers import Optimizer
+from char_rnn.layers import Dense, Embedding, Layer, GRU
+from char_rnn.losses import Loss, SparseCategoricalCrossEntropy
+from char_rnn.optimizers import Nadam, Optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -277,3 +277,26 @@ class Model:
                 raise RuntimeError(
                     f"Layer {layer.name} backward pass returned "
                     "None unexpectedly.")
+
+
+def create_char_rnn(V: int,
+                    D_e: int,
+                    D_h: int,
+                    eta: Optional[float] = None,
+                    training: bool = False,
+                    name: str = "CharRNN") -> Model:
+    embedding_layer = Embedding(V, D_e)
+    gru_layer = GRU(D_e, D_h)
+    dense_layer = Dense(D_h, V)
+
+    model = Model([embedding_layer, gru_layer, dense_layer], name=name)
+
+    if training:
+        if eta is None:
+            raise ValueError("Training is set to true but eta is None.")
+
+        optimizer = Nadam(eta)
+        loss = SparseCategoricalCrossEntropy()
+        model.compile(optimizer, loss)
+
+    return model

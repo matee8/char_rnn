@@ -11,11 +11,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
-from char_rnn import data, preprocessing
-from char_rnn.layers import Dense, Embedding, GRU
-from char_rnn.losses import SparseCategoricalCrossEntropy
-from char_rnn.models import Model
-from char_rnn.optimizers import Nadam
+from char_rnn import data, models, preprocessing
 from char_rnn.preprocessing import TextVectorizer
 
 logging.basicConfig(level=logging.INFO,
@@ -89,14 +85,11 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        model = Model([
-            Embedding(V=vectorizer.vocabulary_size, D_e=args.embedding_dim),
-            GRU(D_in=args.embedding_dim, D_h=args.hidden_dim),
-            Dense(D_in=args.hidden_dim, D_out=vectorizer.vocabulary_size)
-        ])
-        optimizer = Nadam(eta=args.learning_rate)
-        loss_fn = SparseCategoricalCrossEntropy()
-        model.compile(optimizer, loss_fn)
+        model = models.create_char_rnn(V=vectorizer.vocabulary_size,
+                                       D_e=args.embedding_dim,
+                                       D_h=args.hidden_dim,
+                                       eta=args.learning_rate,
+                                       training=True)
     except ValueError as e:
         logger.error("Error initializing model components: %s.",
                      e,

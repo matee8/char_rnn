@@ -7,8 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from char_rnn import data
-from char_rnn.layers import Dense, Embedding, GRU
+from char_rnn import data, models
 from char_rnn.models import Model
 from char_rnn.preprocessing import TextVectorizer
 
@@ -90,11 +89,9 @@ def main(args: argparse.Namespace):
         sys.exit(1)
 
     try:
-        model = Model([
-            Embedding(V=vectorizer.vocabulary_size, D_e=args.embedding_dim),
-            GRU(D_in=args.embedding_dim, D_h=args.hidden_dim),
-            Dense(D_in=args.hidden_dim, D_out=vectorizer.vocabulary_size)
-        ])
+        model = models.create_char_rnn(V=vectorizer.vocabulary_size,
+                                       D_e=args.embedding_dim,
+                                       D_h=args.hidden_dim)
         model.load_weights(args.weights_path)
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         logger.error("Failed to initialize model or load weights: %s.",
