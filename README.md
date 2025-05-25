@@ -20,18 +20,19 @@ This implementation features a sequential neural network architecture designed
 for character-level sequence modelling. The model processes input character
 sequences to predict the next character in the sequence.
 
-The model's operation can be conceptualized in several stages:
+The core `Model` class is generic, allowing for the construction of various
+sequential architectures by providing a list of layers. For character
+generation, a helper function `create_char_rnn_model` is provided to instantiate
+a common CharRNN architecture. This standard CharRNN's operation can be
+conceptualized in several stages:
 
 -   **Input representation**: Raw character sequences are first transformed
     into a dense, continuous numerical format via an **embedding layer**. The
-    weights for this layer are initialized using a random uniform distribution.
+    weights for this layer are initialized using a random uniform distribution
+    by default.
 -   **Sequential processing**: The embedded sequence is processed by a recurrent
-    layer. This project provides:
+    layer. The default `create_char_rnn_model` uses:
 
-    -   A **Simple Recurrent Layer**: This layer uses a standard RNN cell with
-        a tanh activation function. Input-to-hidden weights are initialized
-        using Glorot Uniform, and hidden-to-hidden weights with an Orthogonal
-        initializer.
     -   A **Gated Recurrent Unit (GRU) Layer**: This layer implements the GRU
         cell, which uses update and reset gates to manage information flow,
         helping to capture longer-range dependencies. By default, it uses a tanh
@@ -40,11 +41,12 @@ The model's operation can be conceptualized in several stages:
         Uniform, and hidden-state-related recurrent weights with an Orthogonal
         initializer.
 
-    By default, the model used in the scripts uses the GRU layer.
+    While the default uses GRU, the generic `Model` class could also incorporate
+    a Simple Recurrent Layer or other custom recurrent layers.
 
 -   **Output prediction**: The final hidden state from the recurrent layer is
-    projected through an **output layer** which uses a softmax activation
-    function. Uses the Glorot Uniform initializer.
+    projected through an **output layer** (a Dense layer) which uses a softmax
+    activation function by default. Uses the Glorot Uniform initializer.
 
 **Learning and Evaluation**:
 
@@ -53,20 +55,15 @@ The model's operation can be conceptualized in several stages:
     quantified using a **sparse categorical cross-entropy loss function**.
 -   **Optimization**: The model's internal parameters are iteratively
     adjusted to minimize this loss. The project supports multiple optimization
-    algorithms:
-
-    -   **Adam**: Adaptively tunes learning rates for each parameter.
-    -   **Nadam**: Incorporates Nesterov momentum into Adam for potentially
-        improved convergence.
-
-    By default, the model used in the scripts uses the Nadam optimizer.
-
+    algorithms, however, by default, the Nadam optimizer is used.
 -   **Performance metrics**: The model's predictive capability is evaluated
     using **accuracy**, which measures the proportion of correctly predicted
     next characters on a given dataset.
--   **Statefulness**: The model processes mini-batches independently and is not
-    stateful across mini-batches, the hidden state is typically initialized to
-    zeros for each new batch.
+-   **Statefulness**: The model processes mini-batches independently. When
+    generating text sequentially, the hidden state is typically carried over
+    from one step to the next. During batched training/evaluation, the hidden
+    state is usually re-initialized for each batch unless explicitly managed
+    otherwise.
 
 **Text generation**:
 
@@ -77,11 +74,13 @@ Once trained, the model can generate new text sequences. The process involves:
     initial hidden state of the recurrent layer is typically set to zeros.
 -   **Iterative Precition**:
 
-    1.  The model predicts the probability distribution for the next character
-        based on the current input character (or sequence) and the current
-        hidden state.
-    2.  The hidden state is updated and carried over to the next step, making
-        the generation process stateful.
+    1.  The model takes the entire sequence of characters generated so far
+        (beginning with the user's start string) as input.
+    2.  It processes this full sequence to predict the probability distribution
+        for the next character. The recurrent layer's hidden state is internally
+        re-initialized (e.g., to zeros if not otherwise specified in the layer's
+        forward pass when no initial state is provided) and recomputed over the
+        current sequence at each prediction step.
     3.  A new character is sampled from the predicted probability distribution.
         The temperature parameter controls the randomness of this sampling:
 
@@ -158,13 +157,13 @@ capable of generating coherent text based on the patterns it has learned.
 │   └── char_rnn/
 │       ├── __init__.py
 │       ├── activations.py    # Activation function implementations
+│       ├── data.py           # Utilities for data loading and acquisition
 │       ├── initializers.py   # Weight initializer implementations
 │       ├── layers.py         # Neural network layer implementations
 │       ├── losses.py         # Loss function implementations
-│       ├── models.py         # CharRNN model architecture
+│       ├── models.py         # Generic Model class and CharRNN factory function
 │       ├── optimizers.py     # Optimization algorithms
-│       ├── preprocessing.py  # Text vectorization and batching utilities
-│       └── utils.py          # Utilities for data loading and model saving/loading
+│       └── preprocessing.py  # Text vectorization and batching utilities
 ├── LICENSE                   # Project licensing information
 ├── README.md
 └── requirements.txt          # Lists project dependencies for exact version pinning
@@ -190,14 +189,15 @@ options:
 
 Data configuration:
   --data-url DATA_URL   URL to download the dataset from. (default: https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt)
-  --data-dir DATA_DIR   Directory to store downloaded data. (default: ~/Development/char_rnn/data/raw)
+  --data-dir DATA_DIR   Directory to store downloaded data. (default: ./data/raw)
   --data-filename DATA_FILENAME
                         Filename for the dataset within data_dir. (default: input.txt)
 
 Model hyperparameters:
   --embedding-dim EMBEDDING_DIM
-                        Dimension of character embeddings. (default: 128)
+                        Dimension of character embeddings. (default: 16)
   --hidden-dim HIDDEN_DIM
+                        Dimension of hidden states. (default: 128)
   --learning-rate LEARNING_RATE
                         Learning rate for the Adam optimizer. (default: 0.001)
 
@@ -216,7 +216,7 @@ Training parameters:
 
 Output and logging configuration:
   --model-dir MODEL_DIR
-                        Directory to save trained models. (default: ~/Development/char_rnn/models)
+                        Directory to save trained models. (default: ./models)
   --model-filename MODEL_FILENAME
                         Filename for the model within model_dir. (default: char_rnn_shakespeare)
   --log-interval LOG_INTERVAL
@@ -244,13 +244,13 @@ Run inference on a pre-trained CharRNN model for text generation.
 options:
   -h, --help            show this help message and exit
   --weights-path WEIGHTS_PATH
-                        Path to the model weights file (.npz). (default: ~/Development/char_rnn/models/char_rnn_shakespeare.npz)
+                        Path to the model weights file (.npz). (default: ./char_rnn_shakespeare.npz)
   --vocab-data-path VOCAB_DATA_PATH
-                        Path to the original text data file used to build the vocabulary. (default: ~/Development/char_rnn/data/raw/input.txt)
+                        Path to the original text data file used to build the vocabulary. (default: ./data/raw/input.txt)
   --embedding-dim EMBEDDING_DIM
-                        Embedding dimension. (default: 128)
+                        Dimension of character embeddings. (default: 16)
   --hidden-dim HIDDEN_DIM
-                        Hidden layer dimension. (default: 10)
+                        Dimension of hidden states. (default: 128)
   --window-size WINDOW_SIZE
                         Length of the windows passed to the RNN. (default: 100)
   --batch-size BATCH_SIZE
@@ -284,15 +284,15 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   --weights-path WEIGHTS_PATH
-                        Path to the model weights file (.npz). (default: ~/Development/char_rnn/models/char_rnn_shakespeare.npz)
+                        Path to the model weights file (.npz). (default: ./models/char_rnn_shakespeare.npz)
   --vocab-data-path VOCAB_DATA_PATH
-                        Path to the original text data file used to build the vocabulary. (default: ~/Development/char_rnn/data/raw/input.txt)
+                        Path to the original text data file used to build the vocabulary. (default: ./data/raw/input.txt)
   --num-to-generate NUM_TO_GENERATE
                         Number of additional characters to generate. (default: 64)
   --embedding-dim EMBEDDING_DIM
-                        Embedding dimension. (default: 128)
+                        Dimension of character embeddings. (default: 16)
   --hidden-dim HIDDEN_DIM
-                        Hidden layer dimension. (default: 10)
+                        Dimension of hidden states. (default: 128)
   --temperature TEMPERATURE
                         Temperature for sampling. (default: 1.0)
 ```
@@ -303,6 +303,8 @@ The project is structured to separate concerns.
 
 -   **`char_rnn/activations.py`**: Defines the activation functions which could
     be used in the layers, with their derivatives.
+-   **`char_rnn/data.py`**: Contains utilities for data loading and data
+    acquisition.
 -   **`char_rnn/initializers.py`**: Implements various weight initialization
     strategies that can be used by layers to set their initial parameter values.
 -   **`char_rnn/layers.py`**: Defines the building blocks of the neural network,
@@ -316,8 +318,6 @@ The project is structured to separate concerns.
     updating model parameters based on pre-computed gradients.
 -   **`char_rnn/preprocessing.py`**: Offers utilities for data preparation, e.g,
     character encoding/decoding, creating sliding windows, batching, shuffling.
--   **`char_rnn/utils.py`**: Centralizes file I/O operations for loading raw
-    data and saving/loading model weights.
 
 # Future Enhancements
 
