@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
-from char_rnn import preprocessing
+from char_rnn import data, preprocessing
 from char_rnn.layers import Dense, Embedding, GRU
 from char_rnn.losses import SparseCategoricalCrossEntropy
 from char_rnn.models import Model
@@ -30,24 +30,6 @@ DEFAULT_DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
 DEFAULT_MODEL_DIR = Path(__file__).parent.parent / "models"
 DEFAULT_DATA_FILENAME = "input.txt"
 DEFAULT_MODEL_FILENAME = "char_rnn_shakespeare"
-
-
-def download_file(url: str, dest: Path) -> None:
-    temp_dest = dest.with_suffix(dest.suffix + ".tmp")
-
-    try:
-        with requests.get(url, stream=True, timeout=30) as r:
-            r.raise_for_status()
-
-            with open(temp_dest, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-        temp_dest.rename(dest)
-        logger.info("File downloaded successfully to %s.", dest)
-    finally:
-        if temp_dest.exists():
-            temp_dest.unlink()
 
 
 def main(args: argparse.Namespace):
@@ -69,7 +51,7 @@ def main(args: argparse.Namespace):
     if not data_file_path.exists():
         logger.info("Dataset not found. Downloading from %s...", args.data_url)
         try:
-            download_file(args.data_url, data_file_path)
+            data.download_file(args.data_url, data_file_path)
         except requests.exceptions.RequestException as e:
             logger.error("Download failed: %s.", e, exc_info=True)
             sys.exit(1)
@@ -81,7 +63,7 @@ def main(args: argparse.Namespace):
                     data_file_path)
 
     try:
-        text_data = preprocessing.load_data_from_file(data_file_path)
+        text_data = data.load_data_from_file(data_file_path)
     except (FileNotFoundError, IOError) as e:
         logger.error("Error loading data file '%s': %s.",
                      data_file_path,

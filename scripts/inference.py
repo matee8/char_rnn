@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from char_rnn import preprocessing
+from char_rnn import data
 from char_rnn.layers import Dense, Embedding, GRU
 from char_rnn.models import Model
 from char_rnn.preprocessing import TextVectorizer
@@ -70,8 +70,7 @@ def main(args: argparse.Namespace):
     try:
         logger.info("Loading vocabulary data from '%s'...",
                     args.vocab_data_path)
-        full_text_data = preprocessing.load_data_from_file(
-            args.vocab_data_path)
+        full_text_data = data.load_data_from_file(args.vocab_data_path)
         vectorizer = TextVectorizer()
         vectorizer.fit(full_text_data)
     except (FileNotFoundError, IOError, ValueError, RuntimeError) as e:

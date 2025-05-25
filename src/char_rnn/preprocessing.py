@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -146,23 +145,6 @@ def train_test_split(
         X_train.shape[0], X_test.shape[0])
 
     return X_train, X_test, y_train, y_test
-
-
-def load_data_from_file(path: Path) -> str:
-    if not path.is_file():
-        raise FileNotFoundError(f"File not found at '{path}'.")
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            text_data = f.read()
-
-        logger.info(
-            "Successfully loaded data from '%s'. Total characters: %d.", path,
-            len(text_data))
-
-        return text_data
-    except IOError as e:
-        raise IOError(f"Could not read file at '{path}'.") from e
 
 
 def create_sliding_windows(s: np.ndarray,
