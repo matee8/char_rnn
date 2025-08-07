@@ -1,5 +1,4 @@
 # Character-Level Recurrent Neural Network
-asd
 
 This project implements a recurrent neural network (RNN) from scratch for
 character-level text generation. This repository serves as an educational
