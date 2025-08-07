@@ -48,3 +48,6 @@ char-rnn-inference = "char_rnn.scripts.inference:main"
 [build-system]
 requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["src/char_rnn"]
