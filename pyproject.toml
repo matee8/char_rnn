@@ -44,3 +44,7 @@ Issues = "https://github.com/matee8/char_rnn/issues"
 char-rnn-train = "char_rnn.scripts.train:main"
 char-rnn-evaluate = "char_rnn.scripts.evaluate:main"
 char-rnn-inference = "char_rnn.scripts.inference:main"
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
