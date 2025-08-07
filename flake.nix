@@ -91,6 +91,7 @@
                         pkgs.uv
                         pkgs.pylint
                         pkgs.yapf
+                        pkgs.pyright
                     ];
 
                     env = {
