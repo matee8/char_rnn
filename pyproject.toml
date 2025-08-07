@@ -35,6 +35,15 @@ classifiers = [
     "Topic :: Text Processing :: Linguistic",
 ]
 
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "pylint>=3.3.7",
+    "pytest>=8.4.1",
+    "yapf>=0.43.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/matee8/char_rnn"
 Repository = "https://github.com/matee8/char_rnn"

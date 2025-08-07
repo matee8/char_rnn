@@ -89,8 +89,6 @@
                     packages = [
                         virtualenv
                         pkgs.uv
-                        pkgs.pylint
-                        pkgs.yapf
                         pkgs.pyright
                     ];
 
