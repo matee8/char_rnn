@@ -178,3 +178,5 @@ data/
 
 # Trained models
 models/
+
+.direnv
