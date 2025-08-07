@@ -28,7 +28,13 @@ DEFAULT_DATA_FILENAME = "input.txt"
 DEFAULT_MODEL_FILENAME = "char_rnn_shakespeare"
 
 
-def main(args: argparse.Namespace):
+def main():
+    try:
+        args = parse_arguments()
+    except argparse.ArgumentError as e:
+        logger.error("Argument error: %s.", e, exc_info=True)
+        sys.exit(1)
+
     if args.seed is not None:
         np.random.seed(args.seed)
         random.seed(args.seed)
@@ -256,10 +262,4 @@ def parse_arguments() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    try:
-        parsed_args = parse_arguments()
-    except argparse.ArgumentError as e:
-        logger.error("Argument error: %s.", e, exc_info=True)
-        sys.exit(1)
-
-    main(parsed_args)
+    main()

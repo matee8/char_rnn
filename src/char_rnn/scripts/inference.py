@@ -65,7 +65,13 @@ def generate_text(model: Model,
     return vectorizer.decode(generated_text.reshape(1, -1))[0]
 
 
-def main(args: argparse.Namespace):
+def main():
+    try:
+        args = parse_arguments()
+    except argparse.ArgumentError as e:
+        logger.error("Argument Error: %s.", e, exc_info=True)
+        sys.exit(1)
+
     try:
         logger.info("Loading vocabulary data from '%s'...",
                     args.vocab_data_path)
@@ -170,10 +176,4 @@ def parse_arguments() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    try:
-        parsed_args = parse_arguments()
-    except argparse.ArgumentError as e:
-        logger.error("Argument Error: %s.", e, exc_info=True)
-        sys.exit(1)
-
-    main(parsed_args)
+    main()

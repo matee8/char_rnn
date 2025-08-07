@@ -39,3 +39,8 @@ classifiers = [
 Homepage = "https://github.com/matee8/char_rnn"
 Repository = "https://github.com/matee8/char_rnn"
 Issues = "https://github.com/matee8/char_rnn/issues"
+
+[project.scripts]
+char-rnn-train = "char_rnn.scripts.train:main"
+char-rnn-evaluate = "char_rnn.scripts.evaluate:main"
+char-rnn-inference = "char_rnn.scripts.inference:main"
